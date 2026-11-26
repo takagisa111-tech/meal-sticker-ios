@@ -1,0 +1,522 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B49BEC0D084125DAEA1AD88A /* AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE4FB4479DEB831080199D6 /* AI.swift */; };
+		443324497D12BBE39114E3EE /* AIExtra.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A2A96E0951BC4742F287FC /* AIExtra.swift */; };
+		E8199C97B4B150993E292057 /* AddMealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69098EFDF474C0D71D850838 /* AddMealView.swift */; };
+		0B0B8B34AA3F28E2226C75AF /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F08D9F957C5D2A7AEF694B0 /* CalendarView.swift */; };
+		1D5475F8B3F78E58DA682D42 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC382FAFD059FC47D27D5A35 /* Components.swift */; };
+		536D1F0F44A5866FF305FDB2 /* EatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B345FEE539ACE02BA7A8DFC /* EatView.swift */; };
+		10A3597B9D897F6FF3E964A2 /* Export.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37A3FF11A2743ED011003EFA /* Export.swift */; };
+		1C75CB7D6BD3ED262145512C /* Grocery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F74659A1E149DCA504AB345 /* Grocery.swift */; };
+		A97901589BBB4E7667B3A7B0 /* MealDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FCC8E23F7B85B30702C15A /* MealDetailView.swift */; };
+		CF16EDA6A9154195C1A77D3C /* Members.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3627166390266C5681AC9E /* Members.swift */; };
+		D6694CAAE9816D9024A317AF /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9EF7B71D61B1249706DD9A /* Models.swift */; };
+		5661F8E2E1990AA4DF653231 /* Nutrition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB06A8FF5ED3F15D3DC17D83 /* Nutrition.swift */; };
+		17CEC9EEF481AD307DD04292 /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7785B6859EAECF25492485 /* NutritionView.swift */; };
+		2C92AB111F359E7BA089B113 /* Reminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A265E3A1D5EB3E4F2A0781FE /* Reminders.swift */; };
+		EE0D68CA45BDD238254562F0 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433039B119C16B4A3ADB23A1 /* Secrets.swift */; };
+		10A3F16312F2740DE261ECD7 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C075B1AC98F48F6539FDF71 /* Services.swift */; };
+		A1CA4A5E8A5E9071C959C1FC /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E743805132DD2D032E6C66DF /* SettingsView.swift */; };
+		EA3BE83012ECBD0D522DCD47 /* ShiTieApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C28829109DC728DA16BF667 /* ShiTieApp.swift */; };
+		DE30CB0E1705B381C6C743F8 /* StickerMaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1EB3BE88502D18D2798895 /* StickerMaker.swift */; };
+		172EE1702FBF6DBCDF3FE7EB /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A516CFFA293701C4992CBF5 /* Store.swift */; };
+		CA1C145A35BC546510E99E09 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42637EC1779DFD6FF878998 /* TodayView.swift */; };
+		2F35CE9CDF5F9045C99966C2 /* WebCart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E18527BBEB4030524AB6F74 /* WebCart.swift */; };
+		A26ED31B50D3456D96C38E9D /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9694B6076B4C950D6704AECE /* WidgetShared.swift */; };
+		58DE5EDEB9C7FAE26ECEE393 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9694B6076B4C950D6704AECE /* WidgetShared.swift */; };
+		6B25D47CAF4757ED3774BCD7 /* ShiTieWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11FFA574C3775364098A078 /* ShiTieWidget.swift */; };
+		67AD8B4FFD1ED43852CFC2CA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B6845EF9D6D0093A0394C43 /* Assets.xcassets */; };
+		2F83C5A16DFCC5716908324A /* ShiTieWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EF8F42982A8C5E195E507CEA /* ShiTieWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		431387EB7262E1CFC79B125E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 792A23021CA546B4A394E8D2;
+			remoteInfo = ShiTieWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		269605D45C104F12CBCDC8FB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2F83C5A16DFCC5716908324A /* ShiTieWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		7F6D01D6546BCD07518D8398 /* ShiTie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShiTie.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EF8F42982A8C5E195E507CEA /* ShiTieWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShiTieWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		2DE4FB4479DEB831080199D6 /* AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI.swift; sourceTree = "<group>"; };
+		47A2A96E0951BC4742F287FC /* AIExtra.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIExtra.swift; sourceTree = "<group>"; };
+		69098EFDF474C0D71D850838 /* AddMealView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMealView.swift; sourceTree = "<group>"; };
+		7F08D9F957C5D2A7AEF694B0 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		EC382FAFD059FC47D27D5A35 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		4B345FEE539ACE02BA7A8DFC /* EatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EatView.swift; sourceTree = "<group>"; };
+		37A3FF11A2743ED011003EFA /* Export.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Export.swift; sourceTree = "<group>"; };
+		3F74659A1E149DCA504AB345 /* Grocery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Grocery.swift; sourceTree = "<group>"; };
+		14FCC8E23F7B85B30702C15A /* MealDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealDetailView.swift; sourceTree = "<group>"; };
+		5D3627166390266C5681AC9E /* Members.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Members.swift; sourceTree = "<group>"; };
+		CA9EF7B71D61B1249706DD9A /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		AB06A8FF5ED3F15D3DC17D83 /* Nutrition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nutrition.swift; sourceTree = "<group>"; };
+		9E7785B6859EAECF25492485 /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
+		A265E3A1D5EB3E4F2A0781FE /* Reminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reminders.swift; sourceTree = "<group>"; };
+		433039B119C16B4A3ADB23A1 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		4C075B1AC98F48F6539FDF71 /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services.swift; sourceTree = "<group>"; };
+		E743805132DD2D032E6C66DF /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8C28829109DC728DA16BF667 /* ShiTieApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiTieApp.swift; sourceTree = "<group>"; };
+		1A1EB3BE88502D18D2798895 /* StickerMaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StickerMaker.swift; sourceTree = "<group>"; };
+		3A516CFFA293701C4992CBF5 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
+		B42637EC1779DFD6FF878998 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		0E18527BBEB4030524AB6F74 /* WebCart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCart.swift; sourceTree = "<group>"; };
+		9694B6076B4C950D6704AECE /* WidgetShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShared.swift; sourceTree = "<group>"; };
+		D11FFA574C3775364098A078 /* ShiTieWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShiTieWidget.swift; sourceTree = "<group>"; };
+		0B6845EF9D6D0093A0394C43 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9AF1852C70EB12E8A4E3FEEB /* ShiTie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShiTie.entitlements; sourceTree = "<group>"; };
+		1E557BF5014EA1FD06E0477F /* ShiTieWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShiTieWidget.entitlements; sourceTree = "<group>"; };
+		00D27F63E568D189DFAD0A1E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7FFCAA64FDA7DFC475D96EBD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2B731CEFC6751AAE0EC69B98 = {
+			isa = PBXGroup;
+			children = (
+				20F4BD606C0F6D1645AE4919,
+				429461E971936A1CC87DA17D,
+				3AF7E71D86EA58D9E0F75F28,
+				86024CAD1E83101D97359D73,
+			);
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 = {
+			isa = PBXGroup;
+			children = (
+				7F6D01D6546BCD07518D8398,
+				EF8F42982A8C5E195E507CEA,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		20F4BD606C0F6D1645AE4919 = {
+			isa = PBXGroup;
+			children = (
+				2DE4FB4479DEB831080199D6,
+				47A2A96E0951BC4742F287FC,
+				69098EFDF474C0D71D850838,
+				7F08D9F957C5D2A7AEF694B0,
+				EC382FAFD059FC47D27D5A35,
+				4B345FEE539ACE02BA7A8DFC,
+				37A3FF11A2743ED011003EFA,
+				3F74659A1E149DCA504AB345,
+				14FCC8E23F7B85B30702C15A,
+				5D3627166390266C5681AC9E,
+				CA9EF7B71D61B1249706DD9A,
+				AB06A8FF5ED3F15D3DC17D83,
+				9E7785B6859EAECF25492485,
+				A265E3A1D5EB3E4F2A0781FE,
+				433039B119C16B4A3ADB23A1,
+				4C075B1AC98F48F6539FDF71,
+				E743805132DD2D032E6C66DF,
+				8C28829109DC728DA16BF667,
+				1A1EB3BE88502D18D2798895,
+				3A516CFFA293701C4992CBF5,
+				B42637EC1779DFD6FF878998,
+				0E18527BBEB4030524AB6F74,
+				0B6845EF9D6D0093A0394C43,
+				9AF1852C70EB12E8A4E3FEEB,
+			);
+			path = ShiTie;
+			sourceTree = "<group>";
+		};
+		429461E971936A1CC87DA17D = {
+			isa = PBXGroup;
+			children = (
+				9694B6076B4C950D6704AECE,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		3AF7E71D86EA58D9E0F75F28 = {
+			isa = PBXGroup;
+			children = (
+				D11FFA574C3775364098A078,
+				00D27F63E568D189DFAD0A1E,
+				1E557BF5014EA1FD06E0477F,
+			);
+			path = ShiTieWidget;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* ShiTie */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 94E92F4374F7B1A84E405A21;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557,
+				4F6F5CC3FCCF73F75AE9CCF4,
+				55B558C7EF820E6E00E5993B,
+				269605D45C104F12CBCDC8FB,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2254342BECCEAFBD04538E0A,
+			);
+			name = ShiTie;
+			productName = ShiTie;
+			productReference = 7F6D01D6546BCD07518D8398;
+			productType = "com.apple.product-type.application";
+		};
+		792A23021CA546B4A394E8D2 /* ShiTieWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C5019C9D72D35FE1A78A7040;
+			buildPhases = (
+				5AD131C41F0FB32C055D095B,
+				7FFCAA64FDA7DFC475D96EBD,
+				18142849AD244ADAA419BBF9,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShiTieWidget;
+			productName = ShiTieWidget;
+			productReference = EF8F42982A8C5E195E507CEA;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					42AEFBAE01D2DFD981F7DA7D = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					792A23021CA546B4A394E8D2 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 82BEFE99DEE50030C2229134;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = 2B731CEFC6751AAE0EC69B98;
+			productRefGroup = 86024CAD1E83101D97359D73 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* ShiTie */,
+				792A23021CA546B4A394E8D2 /* ShiTieWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				67AD8B4FFD1ED43852CFC2CA /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		18142849AD244ADAA419BBF9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B49BEC0D084125DAEA1AD88A,
+				443324497D12BBE39114E3EE,
+				E8199C97B4B150993E292057,
+				0B0B8B34AA3F28E2226C75AF,
+				1D5475F8B3F78E58DA682D42,
+				536D1F0F44A5866FF305FDB2,
+				10A3597B9D897F6FF3E964A2,
+				1C75CB7D6BD3ED262145512C,
+				A97901589BBB4E7667B3A7B0,
+				CF16EDA6A9154195C1A77D3C,
+				D6694CAAE9816D9024A317AF,
+				5661F8E2E1990AA4DF653231,
+				17CEC9EEF481AD307DD04292,
+				2C92AB111F359E7BA089B113,
+				EE0D68CA45BDD238254562F0,
+				10A3F16312F2740DE261ECD7,
+				A1CA4A5E8A5E9071C959C1FC,
+				EA3BE83012ECBD0D522DCD47,
+				DE30CB0E1705B381C6C743F8,
+				172EE1702FBF6DBCDF3FE7EB,
+				CA1C145A35BC546510E99E09,
+				2F35CE9CDF5F9045C99966C2,
+				A26ED31B50D3456D96C38E9D,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5AD131C41F0FB32C055D095B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B25D47CAF4757ED3774BCD7,
+				58DE5EDEB9C7FAE26ECEE393,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2254342BECCEAFBD04538E0A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 792A23021CA546B4A394E8D2 /* ShiTieWidget */;
+			targetProxy = 431387EB7262E1CFC79B125E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		4257995D5FEB097455192277 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+			};
+			name = Debug;
+		};
+		CE7A3CB3B7BB14CB7E72BBF7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				ENABLE_NS_ASSERTIONS = NO;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A3F61B41957AEA1EFA63EB05 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 2R6G8CJT49;
+				MARKETING_VERSION = 1.2;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ShiTie/ShiTie.entitlements;
+				ENABLE_PREVIEWS = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "食贴";
+				INFOPLIST_KEY_NSCameraUsageDescription = "拍下每一餐，做成贴纸贴到手账上";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "从相册选择餐食照片";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把导出的手账图片保存到相册";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "找你附近的餐厅";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "把购物清单加到「提醒事项」";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.huangshitie.mealsticker;
+			};
+			name = Debug;
+		};
+		FF8312F936D3A28646D453F8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 2R6G8CJT49;
+				MARKETING_VERSION = 1.2;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ShiTie/ShiTie.entitlements;
+				ENABLE_PREVIEWS = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "食贴";
+				INFOPLIST_KEY_NSCameraUsageDescription = "拍下每一餐，做成贴纸贴到手账上";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "从相册选择餐食照片";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把导出的手账图片保存到相册";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "找你附近的餐厅";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "把购物清单加到「提醒事项」";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.huangshitie.mealsticker;
+			};
+			name = Release;
+		};
+		4A6CEABD60AF7410DC16D3DD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 2R6G8CJT49;
+				MARKETING_VERSION = 1.2;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_ENTITLEMENTS = ShiTieWidget/ShiTieWidget.entitlements;
+				INFOPLIST_FILE = ShiTieWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "食贴";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.huangshitie.mealsticker.widget;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		1210950164098A537586E3A6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = 2R6G8CJT49;
+				MARKETING_VERSION = 1.2;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_ENTITLEMENTS = ShiTieWidget/ShiTieWidget.entitlements;
+				INFOPLIST_FILE = ShiTieWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "食贴";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.huangshitie.mealsticker.widget;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		82BEFE99DEE50030C2229134 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4257995D5FEB097455192277 /* Debug */,
+				CE7A3CB3B7BB14CB7E72BBF7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		94E92F4374F7B1A84E405A21 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A3F61B41957AEA1EFA63EB05 /* Debug */,
+				FF8312F936D3A28646D453F8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C5019C9D72D35FE1A78A7040 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A6CEABD60AF7410DC16D3DD /* Debug */,
+				1210950164098A537586E3A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

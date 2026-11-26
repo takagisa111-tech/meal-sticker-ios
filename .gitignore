@@ -1,0 +1,10 @@
+# 密钥：自己按 Secrets.example.swift 建一个，不要提交
+ShiTie/Secrets.swift
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+.DS_Store
+*.zip
