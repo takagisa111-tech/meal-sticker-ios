@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UserNotifications
+import MapKit
 
 /// 「管家」：对话式 agent。说一句或拍一张，记录、查询、做饭、点外卖、排菜单。
 /// 界面参考主流 agent：空白输入框、可展开的执行步骤、结构化结果卡片、操作需要用户点确认。
@@ -32,7 +33,7 @@ struct ButlerView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 12)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                .scrollDismissesKeyboard(.immediately)
                 .onChange(of: butler.messages) { _, _ in
                     withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
@@ -48,6 +49,10 @@ struct ButlerView: View {
                         Text("管家").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
                         Text("在帮 \(store.member.displayName)").font(.system(size: 10.5)).foregroundStyle(Color.ink3)
                     }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button { focused = false } label: { Label("收起键盘", systemImage: "keyboard.chevron.compact.down") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -69,7 +74,7 @@ struct ButlerView: View {
             case .memory: MemoryListView()
             case .fridge: FridgeListView()
             case .server: AgentServerView()
-            case .tools: EatView()
+            case .tools: EatView(onClose: { sheet = nil })
             }
         }
         .fullScreenCover(isPresented: $showCamera) { CameraPicker { photo = $0 }.ignoresSafeArea() }
@@ -491,6 +496,7 @@ struct AgentCardView: View {
         case "share": ShareCard(date: card["date"].str)
         case "occasion": OccasionCard(card: card)
         case "takeout": TakeoutCard(card: card, send: send)
+        case "nearby": NearbyCard(card: card)
         default: EmptyView()
         }
     }
@@ -1574,5 +1580,101 @@ struct TakeoutCard: View {
             } label: { Label("点好了，记一笔", systemImage: "checkmark.circle") }
             .buttonStyle(SoftButton()).disabled(butler.streaming)
         }
+    }
+}
+
+// MARK: - 附近的店：管家选品类，手机地图搜真实的店（国内数据来自高德）
+
+struct NearbyHit: Identifiable {
+    let id = UUID()
+    let keyword: String
+    let place: Place
+}
+
+struct NearbyCard: View {
+    @EnvironmentObject var store: Store
+    let card: JSONValue
+    @StateObject private var loc = LocationProvider()
+    @State private var hits: [NearbyHit] = []
+    @State private var loading = true
+    @State private var note = ""
+    @State private var map: IDBox?
+
+    var body: some View {
+        CardBox {
+            HStack {
+                Text("📍 附近" + (card["address"].str.isEmpty ? "" : " · " + card["address"].str))
+                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink).lineLimit(1)
+                Spacer()
+            }
+            if !card["why"].str.isEmpty { Text(card["why"].str).font(.system(size: 12.5)).foregroundStyle(Color.ink2) }
+            FlowLayout(spacing: 6) {
+                ForEach(card["keywords"].strs, id: \.self) { k in
+                    Button { map = IDBox(id: k) } label: { Label(k, systemImage: "map") }
+                        .font(.system(size: 12.5, weight: .medium)).foregroundStyle(Color.brand)
+                        .padding(.horizontal, 10).padding(.vertical, 5).background(Color.brandSoft).clipShape(Capsule())
+                }
+            }
+            if loading {
+                HStack(spacing: 8) { ProgressView(); Text("正在找附近的店…").font(.system(size: 13)).foregroundStyle(Color.ink2) }
+            } else if hits.isEmpty {
+                Text(note.isEmpty ? "附近没找到，点上面的品类在地图里看看" : note).font(.system(size: 13)).foregroundStyle(Color.ink2)
+            } else {
+                if !note.isEmpty { Text(note).font(.system(size: 11.5)).foregroundStyle(Color.ink3) }
+                ForEach(hits) { h in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(h.place.name).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Color.ink).lineLimit(1)
+                            Pill(text: h.keyword)
+                            Spacer()
+                            Text(h.place.distanceText).font(.system(size: 12)).foregroundStyle(Color.ink2)
+                        }
+                        if !h.place.address.isEmpty { Text(h.place.address).font(.system(size: 11.5)).foregroundStyle(Color.ink3).lineLimit(1) }
+                        HStack(spacing: 6) {
+                            small("美团外卖", tint: Color(red: 0.98, green: 0.75, blue: 0.13)) { TakeoutApp.meituan.open(h.place.name, store: store) }
+                            small("饿了么") { TakeoutApp.eleme.open(h.place.name, store: store) }
+                            small("点评") { Dianping.search(h.place.name) }
+                            small("导航") { _ = h.place.item.openInMaps() }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .task { await load() }
+        .sheet(item: $map) { b in NearbyView(keyword: b.id) }
+    }
+
+    private func small(_ t: String, tint: Color? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(t).font(.system(size: 12, weight: .semibold)).foregroundStyle(tint == nil ? Color.ink : .white)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(tint ?? Color.fill).clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func load() async {
+        guard hits.isEmpty else { loading = false; return }
+        var center: CLLocation?
+        let addr = card["address"].str
+        if !addr.isEmpty {
+            center = try? await CLGeocoder().geocodeAddressString(addr).first?.location
+            if center == nil { note = "没找到「\(addr)」这个地址，先用你现在的位置" }
+        }
+        if center == nil { center = await loc.current() }
+        if center == nil { note = "没有定位权限（设置 → 食贴 → 位置），结果可能不在你附近" }
+        var out: [NearbyHit] = []
+        var seen = Set<String>()
+        for k in card["keywords"].strs.prefix(3) {
+            let ps = (try? await Nearby.search(k, near: center)) ?? []
+            for p in ps where !seen.contains(p.name) && (p.distance ?? 0) < 5000 {
+                seen.insert(p.name)
+                out.append(NearbyHit(keyword: k, place: p))
+                if out.filter({ $0.keyword == k }).count >= 3 { break }
+            }
+        }
+        hits = out.sorted { ($0.place.distance ?? 1e9) < ($1.place.distance ?? 1e9) }
+        loading = false
     }
 }

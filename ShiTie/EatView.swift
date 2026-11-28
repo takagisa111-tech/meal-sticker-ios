@@ -5,6 +5,7 @@ import MapKit
 /// 「吃什么」：本周菜式、附近找店、拍菜单点菜、冰箱菜谱、购物清单
 struct EatView: View {
     @EnvironmentObject var store: Store
+    var onClose: (() -> Void)? = nil     // 从管家里弹出来时显示关闭按钮
     @State private var query = ""
     @State private var nearby: IDBox?
     @State private var showNext = false
@@ -23,6 +24,7 @@ struct EatView: View {
                         }
                         Spacer()
                         MemberMenu(compact: true)
+                        if let onClose { IconButton(symbol: "xmark", label: "关闭", action: onClose) }
                     }
                     .padding(.top, 8)
                     nextCard.padding(.top, 16)

@@ -105,7 +105,7 @@ def _cards(turn: Turn, final: str) -> list[dict]:
                 cards.append(c)
     if turn.table:
         cards.append(turn.table)
-    cards += [c for c in turn.cards if c["kind"] in ("takeout", "safety", "shopping", "confirm", "share")]
+    cards += [c for c in turn.cards if c["kind"] in ("nearby", "takeout", "safety", "shopping", "confirm", "share")]
     cites = [turn.guides[g] for g in refs if g in turn.guides]
     if not cites and turn.guides:   # 查了指南但正文忘了标编号：仍然给出处
         cites = list(turn.guides.values())[:3]

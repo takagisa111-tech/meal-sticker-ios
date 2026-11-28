@@ -1,6 +1,37 @@
 import SwiftUI
 import UserNotifications
 
+/// 点输入框以外的任何地方就收起键盘（整个 App，包括弹出的页面）
+final class KeyboardDismiss: NSObject, UIGestureRecognizerDelegate {
+    static let shared = KeyboardDismiss()
+    private var done = Set<ObjectIdentifier>()
+
+    @MainActor static func install() {
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for w in scene.windows where !shared.done.contains(ObjectIdentifier(w)) {
+                let g = UITapGestureRecognizer(target: shared, action: #selector(tap(_:)))
+                g.cancelsTouchesInView = false
+                g.delegate = shared
+                w.addGestureRecognizer(g)
+                shared.done.insert(ObjectIdentifier(w))
+            }
+        }
+    }
+
+    @objc private func tap(_ g: UITapGestureRecognizer) { g.view?.endEditing(true) }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var v = touch.view
+        while let x = v {
+            if x is UITextField || x is UITextView { return false }   // 点的是输入框本身，不收
+            v = x.superview
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+}
+
 /// 通知点开后要做的事，由 ContentView 处理（那里拿得到 Store、管家和 Tab）
 @MainActor final class NotifRouter: ObservableObject {
     static let shared = NotifRouter()
@@ -115,6 +146,7 @@ struct ContentView: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: store.toast)
+        .onAppear { KeyboardDismiss.install() }
         .onReceive(router.$pending) { p in
             guard let p else { return }
             router.pending = nil

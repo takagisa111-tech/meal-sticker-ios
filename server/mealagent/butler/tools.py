@@ -492,6 +492,13 @@ class Turn:
         self.cards.append({"kind": "takeout", "id": _id("T"), "shop": shop, "items": items, "note": note})
         return {"ok": True, "items": items, "note": "App 显示了去美团 / 饿了么 / 大众点评的按钮，下单付款由用户自己完成；送到后可以点「点好了，记一笔」"}
 
+    def find_restaurants(self, keywords: list, address: str = "", why: str = ""):
+        kws = [str(k)[:12] for k in keywords or [] if str(k).strip()][:3]
+        if not kws:
+            return {"error": "keywords 不能为空，给 1–3 个品类关键词，如「轻食」「粤菜」「砂锅粥」"}
+        self.cards.append({"kind": "nearby", "id": _id("P"), "keywords": kws, "address": address[:60], "why": why[:80]})
+        return {"ok": True, "note": "App 会用手机地图在用户位置（或给的地址）附近搜这些品类，显示真实的店、距离和去美团/点评的按钮。你不要自己编店名。"}
+
     # ================= 办一件事（D）=================
     def plan_occasion(self, date: str | None = None, time: str = "18:30", guests: list | None = None, dishes: int | None = None,
                       requirements: str = ""):
@@ -649,6 +656,9 @@ SCHEMAS = [
        {"picks": {"type": "array", "items": {"type": "object", "properties": {"name": {**S, "description": "菜名"}, "shop": S, "kcal": N,
                                                                               "why": {**S, "description": "一句推荐理由"}}}},
         "shop": {**S, "description": "店名（知道的话）"}, "note": {**S, "description": "下单小贴士，如「酱汁分装」「米饭减半」"}}, ["picks"]),
+    _f("find_restaurants", "找附近的店：你按口味画像、今天剩余热量和本周缺口选 1–3 个品类关键词，App 用手机地图在附近（或用户给的地址附近）搜真实的店并给出距离、美团/点评按钮。",
+       {"keywords": {**A, "description": "品类关键词，如「轻食」「粤菜」「砂锅粥」「日料」"}, "address": {**S, "description": "用户说过的地址，不知道就留空（用定位）"},
+        "why": {**S, "description": "一句话说明为什么推荐这几类"}}, ["keywords"]),
     _f("plan_occasion", "规划一顿有客人的饭（请客、给爸妈做饭、聚餐、过节）：按每位客人的忌口和身体情况排菜（程序逐条检查），倒推做饭时间线，合并采购清单。",
        {"date": DATE, "time": {**S, "description": "开饭时间 HH:MM"},
         "guests": {"type": "array", "items": {"type": "object", "properties": {
@@ -681,7 +691,7 @@ LABELS = {
     "add_to_shopping_list": ("🛒", "整理购物清单"), "design_journal": ("🎨", "设计手账排版"),
     "edit_meal": ("✏️", "修改记录"), "delete_meal": ("🗑️", "准备删除记录"), "update_settings": ("⚙️", "修改设置"),
     "share_journal": ("📤", "准备导出分享"), "create_reminder": ("⏰", "设提醒"), "plan_occasion": ("🍽️", "按每位客人排菜并检查"),
-    "taste_profile": ("👅", "看你的口味画像"), "order_takeout": ("🛵", "准备外卖下单"),
+    "taste_profile": ("👅", "看你的口味画像"), "order_takeout": ("🛵", "准备外卖下单"), "find_restaurants": ("📍", "找附近的店"),
 }
 
 
@@ -718,6 +728,8 @@ def summarize(name: str, args: dict, res) -> str:
             return " ".join(["+" + x for x in args.get("add", []) or []] + ["−" + x for x in args.get("remove", []) or []])
         if name == "add_to_shopping_list":
             return "、".join(res.get("items", [])[:10])
+        if name == "find_restaurants":
+            return "、".join(args.get("keywords", [])) + (f' · {args["address"]}' if args.get("address") else " · 用定位")
         if name == "order_takeout":
             return "、".join(f'{i["name"]}' for i in res.get("items", []))
         if name == "taste_profile":
