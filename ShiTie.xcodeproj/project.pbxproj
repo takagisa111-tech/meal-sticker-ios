@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		B49BEC0D084125DAEA1AD88A /* AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE4FB4479DEB831080199D6 /* AI.swift */; };
 		443324497D12BBE39114E3EE /* AIExtra.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A2A96E0951BC4742F287FC /* AIExtra.swift */; };
+		48E5817211344C5ABB95F211 /* ButlerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9E35FB186448A9A49700E6 /* ButlerView.swift */; };
+		48EE06071B5C4DF989CAC2AA /* Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F055950B074E69B41C0C73 /* Agent.swift */; };
 		E8199C97B4B150993E292057 /* AddMealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69098EFDF474C0D71D850838 /* AddMealView.swift */; };
 		0B0B8B34AA3F28E2226C75AF /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F08D9F957C5D2A7AEF694B0 /* CalendarView.swift */; };
 		1D5475F8B3F78E58DA682D42 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC382FAFD059FC47D27D5A35 /* Components.swift */; };
@@ -65,6 +67,8 @@
 		EF8F42982A8C5E195E507CEA /* ShiTieWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShiTieWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2DE4FB4479DEB831080199D6 /* AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI.swift; sourceTree = "<group>"; };
 		47A2A96E0951BC4742F287FC /* AIExtra.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIExtra.swift; sourceTree = "<group>"; };
+		5C9E35FB186448A9A49700E6 /* ButlerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButlerView.swift; sourceTree = "<group>"; };
+		F6F055950B074E69B41C0C73 /* Agent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent.swift; sourceTree = "<group>"; };
 		69098EFDF474C0D71D850838 /* AddMealView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMealView.swift; sourceTree = "<group>"; };
 		7F08D9F957C5D2A7AEF694B0 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		EC382FAFD059FC47D27D5A35 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -135,6 +139,8 @@
 			children = (
 				2DE4FB4479DEB831080199D6,
 				47A2A96E0951BC4742F287FC,
+				F6F055950B074E69B41C0C73,
+				5C9E35FB186448A9A49700E6,
 				69098EFDF474C0D71D850838,
 				7F08D9F957C5D2A7AEF694B0,
 				EC382FAFD059FC47D27D5A35,
@@ -281,6 +287,8 @@
 			files = (
 				B49BEC0D084125DAEA1AD88A,
 				443324497D12BBE39114E3EE,
+				48EE06071B5C4DF989CAC2AA,
+				48E5817211344C5ABB95F211,
 				E8199C97B4B150993E292057,
 				0B0B8B34AA3F28E2226C75AF,
 				1D5475F8B3F78E58DA682D42,
@@ -388,6 +396,8 @@
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把导出的手账图片保存到相册";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "找你附近的餐厅";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "把购物清单加到「提醒事项」";
+				INFOPLIST_FILE = ShiTie/Info.plist;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "连接你电脑上的管家服务器";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -422,6 +432,8 @@
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "把导出的手账图片保存到相册";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "找你附近的餐厅";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "把购物清单加到「提醒事项」";
+				INFOPLIST_FILE = ShiTie/Info.plist;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "连接你电脑上的管家服务器";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

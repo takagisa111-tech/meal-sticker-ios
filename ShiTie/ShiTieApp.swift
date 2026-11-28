@@ -3,12 +3,14 @@ import SwiftUI
 @main
 struct ShiTieApp: App {
     @StateObject private var store = Store()
+    @StateObject private var butler = Butler()
     @Environment(\.scenePhase) private var phase
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(butler)
                 .task {
                     _ = await Reminders.requestAuth()
                     store.refreshReminders()
@@ -16,13 +18,13 @@ struct ShiTieApp: App {
                 }
         }
         .onChange(of: phase) { _, p in
-            if p == .background { store.saveNow() }
+            if p == .background { store.saveNow(); butler.save() }
             if p == .active { store.refreshReminders() }
         }
     }
 }
 
-enum Tab: Hashable { case today, calendar, eat, nutrition, me }
+enum Tab: Hashable { case today, calendar, butler, nutrition, me }
 
 struct ContentView: View {
     @EnvironmentObject var store: Store
@@ -35,8 +37,8 @@ struct ContentView: View {
                 .tabItem { Label("今日", systemImage: "book.closed") }.tag(Tab.today)
             CalendarView(date: $date, onPick: { tab = .today })
                 .tabItem { Label("日历", systemImage: "calendar") }.tag(Tab.calendar)
-            EatView()
-                .tabItem { Label("推荐", systemImage: "fork.knife") }.tag(Tab.eat)
+            ButlerView()
+                .tabItem { Label("管家", systemImage: "sparkles") }.tag(Tab.butler)
             NutritionView()
                 .tabItem { Label("分析", systemImage: "chart.bar.xaxis") }.tag(Tab.nutrition)
             SettingsView()

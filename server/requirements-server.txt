@@ -1,0 +1,10 @@
+# 云端部署用的精简依赖（不装 torch / sentence-transformers，菜谱和指南检索走 BM25）
+fastapi>=0.110
+uvicorn>=0.29
+openai>=1.50
+pydantic>=2.6
+python-dotenv>=1.0
+pillow>=10.0
+numpy>=1.26
+rank-bm25>=0.2.2
+langgraph>=0.2

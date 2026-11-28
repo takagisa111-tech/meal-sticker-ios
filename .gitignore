@@ -8,3 +8,11 @@ DerivedData/
 build/
 .DS_Store
 *.zip
+
+# server
+server/.env
+server/.venv/
+server/data/
+server/results/
+__pycache__/
+*.pyc
