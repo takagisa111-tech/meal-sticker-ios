@@ -47,7 +47,7 @@ def validate(tb, plan: list, m: dict, days: int, lo: float, hi: float) -> list[s
     if len(set(ids)) != len(ids):
         v.append("有重复的菜")
     recent = {r.get("title") for r in tb.ctx.recs(m["id"]) if r.get("date", "") >= (dt.date.fromisoformat(tb.ctx.today) - dt.timedelta(days=3)).isoformat()}
-    start = dt.date.fromisoformat(tb.ctx.today) + dt.timedelta(days=1)
+    start = _start(tb)
     fish = veg = 0
     for d in sorted(chosen):
         r = by_id.get(chosen[d])
@@ -97,9 +97,20 @@ TOOLS = [
 ]
 
 
+def _start(tb) -> dt.date:
+    """第一天：用户说了从哪天开始（如「下周一」）就用那天，否则从明天开始。"""
+    try:
+        d = dt.date.fromisoformat(str(getattr(tb, "plan_start", "") or ""))
+        if d >= dt.date.fromisoformat(tb.ctx.today):
+            return d
+    except ValueError:
+        pass
+    return dt.date.fromisoformat(tb.ctx.today) + dt.timedelta(days=1)
+
+
 def run_plan(tb, m: dict, days: int, requirements: str, lo, hi) -> dict:
     lo, hi = kcal_range(tb, m, lo, hi)
-    start = dt.date.fromisoformat(tb.ctx.today) + dt.timedelta(days=1)
+    start = _start(tb)
     dates = [start + dt.timedelta(days=i) for i in range(days)]
     rounds = {"validate": 0}
     last_v: list[str] = []

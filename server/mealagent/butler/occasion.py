@@ -131,12 +131,17 @@ SYSTEM = """你是家宴规划师。用 search_recipes 找菜，用 validate_men
 菜要互补：荤素搭配、口感有变化、别全是炒菜。最后只输出 JSON：{"recipe_ids": ["R012", …], "why": "一句话说明这桌菜的思路"}"""
 
 
-def run(tb, date: str, time: str, guests_in: list, dishes: int | None, requirements: str) -> dict:
+def run(tb, date: str, time: str, guests_in: list, dishes: int | None, requirements: str, people: int | None = None) -> dict:
     members = {m["id"]: m for m in tb.ctx.members}
     guests = [parse_guest(g if isinstance(g, dict) else {"name": str(g)}, members) for g in guests_in or []]
     if not guests:
         guests = [parse_guest({"member_id": tb.ctx.member_id}, members)]
-    n = int(dishes or min(6, max(2, len(guests) + 1)))
+    guests = [g for g in guests if not (g["name"].startswith("客人") and not g["rules"] and not g["allergies"])] or guests  # 不编占位客人
+    try:
+        people = max(int(people or 0), len(guests))
+    except (TypeError, ValueError):
+        people = len(guests)
+    n = int(dishes or min(8, max(2, (people + 3) // 2 + 1)))
     rs, _ = recipe_db()
     by_id = {r["id"]: r for r in rs}
     rounds = {"v": 0}
@@ -160,7 +165,7 @@ def run(tb, date: str, time: str, guests_in: list, dishes: int | None, requireme
         return {"error": "未知工具"}
 
     who = "；".join(f'{g["name"]}（{g["notes"] or "无特别要求"}）' for g in guests)
-    task = f"{date} {time} 开饭，一共 {len(guests)} 人：{who}。请排 {n} 道菜。" + (f"\n额外要求：{requirements}" if requirements else "")
+    task = f"{date} {time} 开饭，一共 {people} 人，其中有特别情况的：{who}。请排 {n} 道菜。" + (f"\n额外要求：{requirements}" if requirements else "")
     app = react.build(_llm, TOOLS, call, tb.stats, max_steps=10)
     s = app.invoke({"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": task}]}, {"recursion_limit": 40})
     out = extract_json(react.final_text(s["messages"])) or {}
@@ -174,7 +179,7 @@ def run(tb, date: str, time: str, guests_in: list, dishes: int | None, requireme
         _, need = tb._fridge_split(d)
         buy += [x for x in need if x not in buy]
     tl = timeline(dishes_r, date, time) if dishes_r else []
-    card = {"kind": "occasion", "date": date, "time": time, "people": len(guests),
+    card = {"kind": "occasion", "date": date, "time": time, "people": people,
             "guests": [{"name": g["name"], "rules": [r for r, _ in g["rules"]] + [f"不吃{a}" for a in g["allergies"]]} for g in guests],
             "dishes": [{"recipe_id": d["id"], "title": d["title"], "category": d["category"], "kcal": d.get("kcal"),
                         "minutes": minutes(d)} for d in dishes_r],

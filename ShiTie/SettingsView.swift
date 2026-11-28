@@ -225,7 +225,13 @@ struct MemberEditView: View {
                 Picker("体重目标", selection: $m.goal) { Text("保持").tag("keep"); Text("减重").tag("lose"); Text("增重").tag("gain") }
                 TextField("过敏或不能吃的（可选）", text: $m.avoid)
                 TextField("健康情况（可选，比如 肾不好、肠胃敏感）", text: $m.health)
-                HStack { Text("每日热量目标"); Spacer(); Text("\(m.kcalTarget) kcal").bold() }
+                HStack {
+                    Text("每日热量目标"); Spacer()
+                    if m.kcalOverride != nil {
+                        Button("恢复自动") { m.kcalOverride = nil }.font(.caption).buttonStyle(.borderless)
+                    }
+                    Text("\(m.kcalTarget) kcal").bold()
+                }
             } header: { Text("身体情况") } footer: { Text("按体重和是否绝育估算每天需要的热量，只是参考，具体以兽医建议为准。") }
         } else {
             Section {
@@ -243,7 +249,13 @@ struct MemberEditView: View {
                 if kind == .elder {
                     TextField("健康情况（比如 牙口不好、高血压、糖尿病）", text: $m.health)
                 }
-                HStack { Text("每日热量目标"); Spacer(); Text("\(m.kcalTarget) kcal").bold() }
+                HStack {
+                    Text("每日热量目标"); Spacer()
+                    if m.kcalOverride != nil {
+                        Button("恢复自动") { m.kcalOverride = nil }.font(.caption).buttonStyle(.borderless)
+                    }
+                    Text("\(m.kcalTarget) kcal").bold()
+                }
             } header: { Text("身体情况") } footer: { Text(kind == .elder ? "AI 会按老年人的营养重点来分析，比如蛋白质、钙、少盐和好不好嚼。" : "用来估算热量目标，让 AI 建议更贴合你。") }
         }
     }

@@ -173,7 +173,7 @@ class Turn:
             return self._menu(img, member_id)
         if kind == "fridge":
             r = chat_json(prompts.FRIDGE, [img], stats=self.stats, json_mode=True, temperature=0.2)
-            items = [str(x) for x in r.get("items", []) if x][:30]
+            items = [str(x) for x in r.get("items", []) if x and not _nonfood(str(x))][:30]
             self.emit({"type": "action", "action": {"kind": "fridge", "add": items, "remove": []}})
             self.ctx.fridge = sorted(set(self.ctx.fridge) | set(items))
             return {"kind": "fridge", "items": items, "note": r.get("note", ""), "saved_to_fridge": True}
@@ -401,14 +401,15 @@ class Turn:
             return None
         have, need = self._fridge_split(r)
         return {"kind": "recipe", "id": r["id"], "title": r["title"], "category": r["category"], "kcal": r.get("kcal"),
-                "tags": [r["category"]] + [x for x in r["ingredients"] if x not in PANTRY][:6],
+                "tags": [r["category"]] + [x for x in r["ingredients"] if _norm(x) not in PANTRY and not x.endswith("水")][:6],
                 "difficulty": r.get("difficulty"), "intro": r.get("intro", ""), "amounts": r.get("amounts") or r["ingredients"],
                 "steps": r.get("steps", []), "have": have, "need": need, "source": "HowToCook（程序员做饭指南）"}
 
     # ================= 一周菜单（内层 agent）=================
     def plan_week(self, days: int = 7, member_id: str | None = None, requirements: str = "", kcal_min: float | None = None,
-                  kcal_max: float | None = None):
+                  kcal_max: float | None = None, start_date: str | None = None):
         from .plan import run_plan
+        self.plan_start = start_date or ""
         m = self.ctx.member(member_id)
         if self.ctx.kind(m["id"]) in ("dog", "cat"):
             return {"error": "宠物不需要排菜单，建议按目标热量喂主粮"}
@@ -424,10 +425,13 @@ class Turn:
             hard = [w for w in safety.HARD_FOR_ELDER if w in "、".join(safety.expand(fs))]
             if hard:
                 issues.append("老人可能不好咀嚼：" + "、".join(hard))
-        if issues:
-            self.cards.append({"kind": "safety", "member": m.get("name") or "", "foods": fs[:6], "issues": issues})
-        return {"member": m.get("name"), "issues": issues, "safe": not issues,
-                "note": "规则检查只覆盖常见过敏原、宠物有毒食物和老人咀嚼问题"}
+        cautions = safety.health_cautions(m.get("health", ""), fs)
+        checked = ["过敏 / 忌口"] + (["宠物有毒食物"] if self.ctx.kind(m["id"]) in ("dog", "cat") else []) \
+            + (["咀嚼"] if self.ctx.kind(m["id"]) == "elder" else []) + (["健康情况"] if m.get("health") else [])
+        self.cards.append({"kind": "safety", "member": m.get("name") or "", "foods": fs[:6], "issues": issues,
+                           "cautions": cautions, "ok": not issues, "checked": checked})
+        return {"member": m.get("name"), "issues": issues, "cautions": cautions, "safe": not issues,
+                "note": "issues 是硬规则（过敏、宠物有毒、咀嚼）；cautions 是按成员健康情况的软提醒。卡片已展示给用户"}
 
     def search_guidelines(self, query: str, member_id: str | None = None, k: int = 3):
         cards, idx = guide_db()
@@ -460,15 +464,28 @@ class Turn:
         return {"ok": True, "forgot": hit["text"]}
 
     def update_fridge(self, add: list | None = None, remove: list | None = None):
-        a, r = [str(x) for x in add or []], [str(x) for x in remove or []]
+        a, r = [str(x) for x in add or [] if not _nonfood(str(x))], [str(x) for x in remove or []]
         self.emit({"type": "action", "action": {"kind": "fridge", "add": a, "remove": r}})
         self.ctx.fridge = sorted((set(self.ctx.fridge) | set(a)) - set(r))
         return {"ok": True, "fridge_now": self.ctx.fridge}
 
     def add_to_shopping_list(self, items: list, note: str = ""):
-        its = [str(x) for x in items if str(x).strip()][:40]
-        self.cards.append({"kind": "shopping", "items": its, "note": note})
-        return {"ok": True, "items": its, "note": "App 卡片上有「去下单」（叮咚 / 美团小象 / 盒马 / 京东 / 淘宝，京东淘宝会自动加购物车）和「加入提醒事项」，付款由用户自己完成"}
+        its, maybe, have = [], [], []
+        fridge = {_norm(f) for f in self.ctx.fridge}
+        for x in [str(x).strip() for x in items if str(x).strip()][:40]:
+            n = _norm(x)
+            if not n or n in TOOLS or any(n.endswith(t) for t in TOOLS):
+                continue
+            if n in fridge:
+                have.append(n)
+            elif n in PANTRY or n.endswith("水"):
+                maybe.append(n)
+            else:
+                its.append(x)
+        its = its or maybe
+        maybe = [m for m in maybe if m not in its]
+        self.cards.append({"kind": "shopping", "items": its, "maybe": maybe, "note": note})
+        return {"ok": True, "items": its, "pantry_maybe_at_home": maybe, "already_in_fridge": have, "note": "调料等常备品单独列在「家里可能有」；App 卡片上有「去下单」（叮咚 / 美团小象 / 盒马 / 京东 / 淘宝，京东淘宝会自动加购物车）和「加入提醒事项」，付款由用户自己完成"}
 
     # ================= 口味 / 外卖 =================
     def taste_profile(self, member_id: str | None = None):
@@ -501,9 +518,9 @@ class Turn:
 
     # ================= 办一件事（D）=================
     def plan_occasion(self, date: str | None = None, time: str = "18:30", guests: list | None = None, dishes: int | None = None,
-                      requirements: str = ""):
+                      requirements: str = "", people: int | None = None):
         from .occasion import run
-        return run(self, date or self.ctx.today, time or "18:30", guests or [], dishes, requirements)
+        return run(self, date or self.ctx.today, time or "18:30", guests or [], dishes, requirements, people)
 
     # ================= 操作 App（A）=================
     def _rec(self, meal_id: str) -> dict | None:
@@ -539,9 +556,15 @@ class Turn:
     def update_settings(self, member_id: str | None = None, reminder_slot: str | None = None, reminder_time: str | None = None,
                         reminders_on: bool | None = None, paper: str | None = None, paper_scope: str = "today",
                         weight: float | None = None, goal: str | None = None, avoid: str | None = None, health: str | None = None,
-                        water_cups: int | None = None, mood: str | None = None, switch_to: bool = False):
+                        water_cups: int | None = None, mood: str | None = None, switch_to: bool = False,
+                        kcal_target: float | None = None):
         m = self.ctx.member(member_id)
         a: dict = {"kind": "settings", "member_id": m["id"]}
+        if kcal_target is not None:   # 0 = 恢复按身高体重自动算
+            k = int(kcal_target)
+            if k and not 800 <= k <= 5000 and self.ctx.kind(m["id"]) not in ("dog", "cat"):
+                return {"error": "热量目标不合理（人一般 1200–3500 kcal），请和用户确认"}
+            a["kcal_target"] = k
         if reminder_slot in ("breakfast", "lunch", "dinner") and reminder_time and re.match(r"^\d{1,2}:\d{2}$", reminder_time):
             a["reminder"] = {"slot": reminder_slot, "time": reminder_time}
         if reminders_on is not None:
@@ -601,6 +624,13 @@ def _guess_slot(now: str) -> str:
 
 
 NEG = safety.NEG
+NONFOOD = ("盒", "袋", "锡纸", "保鲜膜", "瓶子", "罐子", "容器", "盘子", "碗", "架", "冰格", "抽屉", "标签", "包装")
+
+
+def _nonfood(x: str) -> bool:
+    """冰箱照片里认出来的非食物（保鲜盒、锡纸、塑料袋）不进冰箱清单；「罐装酱料」「盒装牛奶」这种带食物的保留。"""
+    x = x.strip()
+    return x in TOOLS or any(x == w or (x.endswith(w) and len(x) <= len(w) + 2 and not any(f in x for f in ("奶", "蛋", "肉", "菜", "豆腐", "酱"))) for w in NONFOOD)
 
 
 def _avoid_hits(m: dict, foods: list[str], extra: list[str] | None = None) -> list[str]:
@@ -645,7 +675,8 @@ SCHEMAS = [
         "max_kcal": N, "max_difficulty": {**I, "description": "1–5 星"}, "member_id": MID, "k": I}, ["query"]),
     _f("get_recipe", "取一道菜谱的完整用量和做法步骤。", {"recipe_id": S}, ["recipe_id"]),
     _f("plan_week", "给一位家庭成员排 N 天（默认 7 天）晚饭菜单：内部会检索菜谱，并用程序检查热量、不重复、鱼和蔬菜次数、过敏忌口、工作日难度、优先用冰箱食材，全部通过才返回。",
-       {"days": I, "member_id": MID, "requirements": {**S, "description": "用户额外的要求"}, "kcal_min": N, "kcal_max": N}),
+       {"days": I, "member_id": MID, "requirements": {**S, "description": "用户额外的要求"}, "kcal_min": N, "kcal_max": N,
+        "start_date": {**S, "description": "第一天 YYYY-MM-DD（用户说「下周一到周五」就填下周一、days=5）；不填从明天开始"}}),
     _f("check_food_safety", "用确定性规则检查食物对某位成员是否安全：过敏原、忌口、猫狗有毒食物、老人咀嚼。", {"foods": A, "member_id": MID}, ["foods"]),
     _f("search_guidelines", "检索膳食指南知识库（《中国居民膳食指南 2022》、老年人膳食指南、ASPCA/AVMA 宠物食物安全），返回带编号的原文要点。",
        {"query": S, "member_id": MID}, ["query"]),
@@ -664,16 +695,17 @@ SCHEMAS = [
         "guests": {"type": "array", "items": {"type": "object", "properties": {
             "name": S, "notes": {**S, "description": "这个人的情况，如「牙不好」「控糖」「花生过敏」「不吃辣」"},
             "member_id": {**S, "description": "如果是家庭成员，填成员 id"}}}},
-        "dishes": {**I, "description": "几道菜，不填按人数+1"}, "requirements": S}, ["guests"]),
+        "dishes": {**I, "description": "几道菜，不填按人数自动定"}, "requirements": S,
+        "people": {**I, "description": "一共几个人吃饭（含用户自己）。客人里只需列出有特殊情况的人，其余的不用编「客人A/B」"}}, ["guests"]),
     _f("edit_meal", "直接修改一条饮食记录（不用确认，用户可撤销）：portion 按比例缩放份量和营养（半份=0.5、多吃了一半=1.5），也能改餐次、日期、菜名、热量。",
        {"meal_id": S, "portion": N, "slot": SLOT, "date": DATE, "title": S, "kcal": N}, ["meal_id"]),
     _f("delete_meal", "删除一条饮食记录（App 里要用户点确认）。", {"meal_id": S}, ["meal_id"]),
-    _f("update_settings", "直接改 App 设置（用户可撤销）：某餐提醒时间、开关提醒、手账纸张（今天或以后都用）、体重/目标/忌口/健康情况、今天喝水杯数、心情、切换到这位成员。只填要改的字段。",
+    _f("update_settings", "直接改 App 设置（用户可撤销）：某餐提醒时间、开关提醒、手账纸张（今天或以后都用）、体重/目标/每日热量目标/忌口/健康情况、今天喝水杯数、心情、切换到这位成员。只填要改的字段。",
        {"member_id": MID, "reminder_slot": {"type": "string", "enum": ["breakfast", "lunch", "dinner"]}, "reminder_time": {**S, "description": "HH:MM"},
         "reminders_on": {"type": "boolean"}, "paper": {"type": "string", "enum": ["dots", "grid", "lines", "blank", "kraft", "paws"]},
         "paper_scope": {"type": "string", "enum": ["today", "member"]}, "weight": N, "goal": {"type": "string", "enum": ["lose", "keep", "gain"]},
         "avoid": {**S, "description": "完整的忌口/过敏文字（会覆盖原来的）"}, "health": S, "water_cups": I, "mood": {**S, "description": "一个 emoji"},
-        "switch_to": {"type": "boolean"}}),
+        "switch_to": {"type": "boolean"}, "kcal_target": {**N, "description": "手动指定每日热量目标 kcal；0 = 恢复自动计算"}}),
     _f("share_journal", "把某天的手账导出成图片分享（App 显示导出按钮）。", {"date": DATE}),
     _f("create_reminder", "在用户手机上设一个本地提醒（买菜、开始做饭、解冻肉、吃药以外的生活提醒）。", {"when": {**S, "description": "YYYY-MM-DD HH:MM"}, "text": S}, ["when", "text"]),
     _f("remember", "把用户亲口说的、长期有用的个人信息存进长期记忆（一句第三人称陈述）。", {"text": S}, ["text"]),

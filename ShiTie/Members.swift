@@ -116,6 +116,7 @@ struct Member: Codable, Identifiable, Equatable {
     var reminders = ReminderSettings()
     var paper: PaperStyle = .dots
     var paperImage: String? = nil
+    var kcalOverride: Int? = nil     // 用户手动指定的每日热量目标（管家或设置页改的），nil = 自动算
 
     static func makeMe(from p: Profile, reminders: ReminderSettings) -> Member {
         var m = Member(id: "me", name: "我", kind: .me, emoji: "🙂")
@@ -144,6 +145,7 @@ struct Member: Codable, Identifiable, Equatable {
 
     /// 每日热量目标（kcal）
     var kcalTarget: Int {
+        if let o = kcalOverride, o > 0 { return o }
         let w = Double(weight) ?? 0
         if kind.isPet {
             guard w > 0 else { return kind == .dog ? 600 : 220 }

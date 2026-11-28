@@ -412,6 +412,7 @@ final class Butler: ObservableObject {
                 if !a["goal"].str.isEmpty { m.goal = a["goal"].str }
                 if case .string(let v) = a["avoid"] { m.avoid = v }
                 if case .string(let v) = a["health"] { m.health = v }
+                if case .number(let k) = a["kcal_target"] { m.kcalOverride = k > 0 ? Int(k) : nil }
             }
             store.setDay(D.today, member: mid) { d in
                 if a["paper_scope"].str != "member", !a["paper"].str.isEmpty { d.paper = a["paper"].str }

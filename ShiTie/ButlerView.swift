@@ -457,6 +457,7 @@ struct ActionChip: View {
             if case .string = action["health"] { parts.append("健康：\(action["health"].str)") }
             if case .number = action["water"] { parts.append("喝水 \(action["water"].int) 杯") }
             if !action["mood"].str.isEmpty { parts.append("心情 \(action["mood"].str)") }
+            if case .number(let k) = action["kcal_target"] { parts.append(k > 0 ? "每日目标 \(Int(k)) kcal" : "热量目标恢复自动") }
             if action["switch"].bool { parts.append("切换成员") }
             return "已设置：" + parts.joined(separator: "，")
         case "notify":
@@ -486,7 +487,7 @@ struct AgentCardView: View {
         case "plan": PlanCard(card: card)
         case "table": TableCard(card: card)
         case "safety": SafetyCard(card: card)
-        case "shopping": ShoppingCard(items: card["items"].strs, note: card["note"].str)
+        case "shopping": ShoppingCard(items: card["items"].strs, maybe: card["maybe"].strs, note: card["note"].str)
         case "sources": SourcesCard(card: card)
         case "journal": JournalCard(card: card, message: message, send: send)
         case "confirm": ConfirmCard(card: card, message: message)
@@ -796,28 +797,43 @@ struct TableCard: View {
 
 struct SafetyCard: View {
     let card: JSONValue
+    private var ok: Bool { card["issues"].strs.isEmpty }
+    private var tint: Color { ok ? (card["cautions"].strs.isEmpty ? Color.brand : Color.butter) : Color.tomato }
+    private var soft: Color { ok ? (card["cautions"].strs.isEmpty ? Color.brandSoft : Color.butterSoft) : Color.tomatoSoft }
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.shield.fill").font(.system(size: 18)).foregroundStyle(Color.tomato)
-            VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: ok ? (card["cautions"].strs.isEmpty ? "checkmark.shield.fill" : "exclamationmark.triangle.fill") : "xmark.shield.fill")
+                .font(.system(size: 20)).foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 5) {
                 Text((card["member"].str.isEmpty ? "" : card["member"].str + " · ") + card["foods"].strs.joined(separator: "、"))
                     .font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Color.ink)
-                ForEach(card["issues"].strs, id: \.self) { Text($0).font(.system(size: 12.5)).foregroundStyle(Color.tomato) }
+                if ok && card["cautions"].strs.isEmpty {
+                    Text("可以吃 ✓").font(.system(size: 12.5, weight: .medium)).foregroundStyle(Color.brand)
+                }
+                ForEach(card["issues"].strs, id: \.self) { Label($0, systemImage: "xmark.circle.fill").font(.system(size: 12.5)).foregroundStyle(Color.tomato) }
+                ForEach(card["cautions"].strs, id: \.self) { Label($0, systemImage: "exclamationmark.circle.fill").font(.system(size: 12.5)).foregroundStyle(Color.butter) }
+                if !card["checked"].strs.isEmpty {
+                    FlowLayout(spacing: 5) { ForEach(card["checked"].strs, id: \.self) { Pill(text: "✓ " + $0) } }
+                }
                 Text("规则检查（不依赖 AI）").font(.system(size: 10.5)).foregroundStyle(Color.ink3)
             }
             Spacer(minLength: 0)
         }
-        .padding(14).background(Color.tomatoSoft).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(14).background(soft).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
 struct ShoppingCard: View {
     let items: [String]
+    var maybe: [String] = []
     let note: String
     var body: some View {
         CardBox {
             CardTitle(text: "🛒 购物清单", trailing: "\(items.count) 样")
-            FlowLayout(spacing: 6) { ForEach(items, id: \.self) { Pill(text: $0) } }
+            FlowLayout(spacing: 6) { ForEach(items, id: \.self) { Pill(text: $0, style: .green) } }
+            if !maybe.isEmpty {
+                Text("家里可能有：" + maybe.joined(separator: "、")).font(.system(size: 11.5)).foregroundStyle(Color.ink3)
+            }
             if !note.isEmpty { Text(note).font(.system(size: 12)).foregroundStyle(Color.ink2) }
             BuyButton(items: items)
             AddShoppingButton(items: items, compact: false)

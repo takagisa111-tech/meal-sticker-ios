@@ -61,3 +61,25 @@ def check(kind: str, allergies: list[str], foods: list[str]) -> list[str]:
         for t in find(PET_TOXIC, text):
             issues.append(f"宠物不能吃：{t}")
     return issues
+
+
+# 成员健康情况 → 需要提醒的食物（软提醒，不是禁止；关键词命中成员的「健康」一栏才生效）
+HEALTH = {
+    "控盐（血压）": (["血压"], ["皮蛋", "咸蛋", "咸菜", "榨菜", "腊", "腌", "火腿", "培根", "香肠", "卤", "泡面", "方便面", "豆瓣", "酱菜", "咸鱼"]),
+    "控糖（血糖）": (["血糖", "糖尿"], ["奶茶", "蛋糕", "可乐", "果汁", "蜂蜜", "月饼", "糖醋", "拔丝", "甜品", "冰淇淋", "红烧"]),
+    "低嘌呤（尿酸）": (["尿酸", "痛风"], ["虾", "蟹", "贝", "蛤", "生蚝", "内脏", "肝", "腰花", "啤酒", "浓汤", "火锅", "沙丁鱼", "凤尾鱼", "带鱼"]),
+    "控脂（血脂）": (["血脂", "胆固醇"], ["肥肉", "五花", "油炸", "炸", "内脏", "猪油", "奶油", "黄油", "肥牛"]),
+    "养胃": (["胃"], ["辣", "冰", "咖啡", "浓茶", "酒", "生冷"]),
+    "孕期": (["怀孕", "孕"], ["生鱼", "刺身", "生蚝", "酒", "溏心", "半熟", "生肉", "未消毒", "鱼生"]),
+}
+
+
+def health_cautions(health: str, foods: list[str]) -> list[str]:
+    text = "、".join(expand(foods))
+    out = []
+    for label, (keys, words) in HEALTH.items():
+        if any(k in (health or "") for k in keys):
+            hit = [w for w in words if w in text]
+            if hit:
+                out.append(f"{label}：{'、'.join(hit)} 要少吃")
+    return out
