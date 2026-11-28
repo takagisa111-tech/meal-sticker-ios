@@ -229,4 +229,13 @@ def run(body: dict) -> Iterator[dict]:
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
-        yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
+        name = type(e).__name__
+        if name == "AuthenticationError":
+            msg = "DeepSeek API Key 不对或已失效，去「设置 → DeepSeek AI 识别」里检查一下"
+        elif name in ("RateLimitError",):
+            msg = "DeepSeek 余额不足或请求太频繁，稍后再试"
+        elif name in ("APIConnectionError", "APITimeoutError"):
+            msg = "连不上 DeepSeek，检查一下网络再试"
+        else:
+            msg = f"{name}: {e}"
+        yield {"type": "error", "message": msg}
