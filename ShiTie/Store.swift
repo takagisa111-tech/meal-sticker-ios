@@ -257,6 +257,9 @@ final class Store: ObservableObject {
     func setDay(_ d: String, _ change: (inout DayLog) -> Void) {
         var v = day(d); change(&v); days[dayKey(d, currentID)] = v
     }
+    func setDay(_ d: String, member id: String, _ change: (inout DayLog) -> Void) {
+        var v = day(d, member: id); change(&v); days[dayKey(d, id)] = v
+    }
 
     var streak: Int {
         let has = Set(meals.filter { owns($0, currentID) }.map(\.date))
@@ -294,10 +297,23 @@ final class Store: ObservableObject {
     func refreshReminders() {
         guard !loading else { return }
         let week = D.weekDates(offset: 0)
+        let since = D.add(D.today, -28)
         let plans = members.map { m -> ReminderPlan in
             let tips = Nutrition.tips(meals: meals(in: week, member: m.id), member: m, dates: week)
-            return ReminderPlan(member: m, recordedToday: Set(meals(on: D.today, member: m.id).map(\.slot)),
-                                tips: tips.map { "\($0.emoji) \($0.title)，\($0.detail)" })
+            var plan = ReminderPlan(member: m, recordedToday: Set(meals(on: D.today, member: m.id).map(\.slot)),
+                                    tips: tips.map { "\($0.emoji) \($0.title)，\($0.detail)" })
+            // 猜你吃了什么：最近 4 周这个餐次吃过至少 2 次的同一道
+            let recent = meals.filter { owns($0, m.id) && $0.date >= since && $0.status == .done && !$0.title.isEmpty }
+            for slot in MealSlot.mains {
+                let same = recent.filter { $0.slot == slot }
+                let counts = Dictionary(grouping: same, by: \.title)
+                if let best = counts.max(by: { $0.value.count < $1.value.count }), best.value.count >= 2,
+                   let latest = best.value.max(by: { $0.createdAt < $1.createdAt }) {
+                    plan.guesses[slot] = latest
+                }
+            }
+            plan.journalNudge = m.kind == .me
+            return plan
         }
         Reminders.reschedule(plans)
     }

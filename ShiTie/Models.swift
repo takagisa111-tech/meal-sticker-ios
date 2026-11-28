@@ -190,6 +190,24 @@ struct DayLog: Codable, Equatable {
     var mood: String = ""
     var note: String = ""
     var water: Int = 0
+    // v4 新增（可选，兼容旧数据）：管家设计的手账
+    var paper: String? = nil        // 这一天单独用的纸张，nil = 跟随成员设置
+    var title: String? = nil        // 这一页的小标题
+    var caption: String? = nil      // 一句手账日记
+    var decos: [Deco]? = nil        // 装饰：和纸胶带、emoji、印章、便利贴、手写标签
+}
+
+/// 手账上的装饰物，坐标是页面宽高的比例
+struct Deco: Codable, Equatable, Identifiable {
+    var id = UUID().uuidString
+    var kind: String                // tape / emoji / icon / text / note / stamp
+    var text: String = ""
+    var x: Double
+    var y: Double
+    var rot: Double = 0
+    var size: Double = 0.06         // 占页面宽度的比例
+    var color: String = "#3A3A36"
+    var highlight: Bool = false
 }
 
 struct Profile: Codable, Equatable {
@@ -308,6 +326,13 @@ enum D {
 // MARK: - 颜色（墨色 + 石灰白，品牌绿只用在关键位置）
 
 extension Color {
+    /// "#A8C3A0" → Color
+    init(hex: String) {
+        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
+        let v = UInt64(h, radix: 16) ?? 0x3A3A36
+        self.init(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+    }
+
     static let paper = Color(red: 0.945, green: 0.941, blue: 0.925)      // 页面底色 #F1F0EC
     static let card = Color.white
     static let ink = Color(red: 0.110, green: 0.110, blue: 0.102)        // 主文字 #1C1C1A

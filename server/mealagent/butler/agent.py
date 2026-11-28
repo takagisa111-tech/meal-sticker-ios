@@ -77,6 +77,10 @@ def _memo(turn: Turn, final: str) -> str:
     for c in turn.cards:
         if c["kind"] == "plan":
             parts.append("〔一周菜单 " + "；".join(f'{r["weekday"]} {r["title"]}[{r["recipe_id"]}]' for r in c["rows"]) + "〕")
+        if c["kind"] == "journal":
+            parts.append(f'〔手账设计 {c["date"]} {c["style"]}：{c["title"]}｜{c["caption"]}〕')
+        if c["kind"] == "occasion":
+            parts.append("〔聚餐方案 " + "、".join(f'{d["title"]}[{d["recipe_id"]}]' for d in c["dishes"]) + "〕")
         if c["kind"] == "menu":
             parts.append("〔菜单推荐 " + "、".join(p["name"] for p in c["picks"]) + "〕")
     if turn.table:
@@ -88,8 +92,8 @@ def _cards(turn: Turn, final: str) -> list[dict]:
     cards = []
     for did in turn.new_drafts:
         cards.append({"kind": "meal", **turn.drafts[did]})
-    order = {"menu": 0, "plan": 1, "safety": 3, "shopping": 4}
-    cards += sorted([c for c in turn.cards if c["kind"] in ("menu", "plan")], key=lambda c: order[c["kind"]])
+    order = {"journal": 0, "occasion": 1, "menu": 2, "plan": 3}
+    cards += sorted([c for c in turn.cards if c["kind"] in order], key=lambda c: order[c["kind"]])
     refs = list(dict.fromkeys(REF.findall(final)))
     plan_ids = {r["recipe_id"] for c in turn.cards if c["kind"] == "plan" for r in c["rows"]}
     for rid in refs:
@@ -99,7 +103,7 @@ def _cards(turn: Turn, final: str) -> list[dict]:
                 cards.append(c)
     if turn.table:
         cards.append(turn.table)
-    cards += [c for c in turn.cards if c["kind"] in ("safety", "shopping")]
+    cards += [c for c in turn.cards if c["kind"] in ("safety", "shopping", "confirm", "share")]
     cites = [turn.guides[g] for g in refs if g in turn.guides]
     if not cites and turn.guides:   # 查了指南但正文忘了标编号：仍然给出处
         cites = list(turn.guides.values())[:3]

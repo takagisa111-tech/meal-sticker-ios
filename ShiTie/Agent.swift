@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 import UIKit
+import UserNotifications
+import Speech
+import AVFoundation
 
 // MARK: - 任意 JSON（卡片内容由服务器决定，App 按字段读）
 
@@ -142,8 +145,10 @@ final class Butler: ObservableObject {
     @Published var memories: [MemoryItem] = []
     @Published var fridge: [String] = []
     @Published var streaming = false
+    @Published var draft: String?          // 从通知带过来、放进输入框的半句话
 
     private var task: Task<Void, Never>?
+    private var undos: [String: () -> Void] = [:]      // 这次运行里执行过的动作的撤销方法（按 segment id）
     private let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     private var fileURL: URL { docs.appendingPathComponent("butler.json") }
     var imageDir: URL { docs.appendingPathComponent("butler", isDirectory: true) }
@@ -316,8 +321,9 @@ final class Butler: ObservableObject {
             }
         case "action":
             let a = ev["action"]
-            apply(a)
-            mutate(aid) { $0.segments.append(Segment(kind: "action", action: a)) }
+            let seg = Segment(kind: "action", action: a)
+            if let u = perform(a, store: store) { undos[seg.id] = u }
+            mutate(aid) { $0.segments.append(seg) }
         case "card":
             mutate(aid) { $0.segments.append(Segment(kind: "card", card: ev["card"])) }
         case "memo":
@@ -331,7 +337,78 @@ final class Butler: ObservableObject {
         }
     }
 
-    // MARK: 动作（记忆、冰箱）
+    // MARK: 动作：管家直接操作 App，返回撤销方法
+
+    func canUndo(_ segment: String) -> Bool { undos[segment] != nil }
+
+    private func perform(_ a: JSONValue, store: Store) -> (() -> Void)? {
+        switch a["kind"].str {
+        case "remember", "forget", "fridge":
+            apply(a)
+            return nil
+        case "edit_meal":
+            let id = a["id"].str
+            guard let old = store.meal(id) else { return nil }
+            store.update(id) { m in
+                let f = a["portion"].num
+                if f > 0 {
+                    m.foods = m.foods.map { (x0: FoodItem) -> FoodItem in var x = x0; x.grams = (x.grams * f).rounded(); return x }
+                    m.kcal *= f; m.protein *= f; m.carbs *= f; m.fat *= f; m.fiber *= f
+                }
+                if let s = MealSlot(rawValue: a["slot"].str) { m.slot = s }
+                if !a["date"].str.isEmpty { m.date = a["date"].str }
+                if !a["title"].str.isEmpty { m.title = a["title"].str }
+                if a["kcal"].num > 0 { m.kcal = a["kcal"].num }
+            }
+            store.refreshReminders()
+            return { [weak store] in store?.update(id) { $0 = old }; store?.refreshReminders() }
+        case "settings":
+            let mid = a["member_id"].str.isEmpty ? store.currentID : a["member_id"].str
+            guard let oldMember = store.member(mid) else { return nil }
+            let oldDay = store.day(D.today, member: mid)
+            let oldCurrent = store.currentID
+            store.updateMember(mid) { m in
+                let r = a["reminder"]
+                if let slot = MealSlot(rawValue: r["slot"].str) {
+                    let mins = D.minutes(r["time"].str)
+                    switch slot {
+                    case .breakfast: m.reminders.breakfast = mins
+                    case .lunch: m.reminders.lunch = mins
+                    case .dinner: m.reminders.dinner = mins
+                    case .snack: break
+                    }
+                }
+                if case .bool(let on) = a["reminders_on"] { m.reminders.on = on }
+                if a["paper_scope"].str == "member", let p = PaperStyle(rawValue: a["paper"].str) { m.paper = p }
+                if a["weight"].num > 0 { m.weight = String(format: "%g", a["weight"].num) }
+                if !a["goal"].str.isEmpty { m.goal = a["goal"].str }
+                if case .string(let v) = a["avoid"] { m.avoid = v }
+                if case .string(let v) = a["health"] { m.health = v }
+            }
+            store.setDay(D.today, member: mid) { d in
+                if a["paper_scope"].str != "member", !a["paper"].str.isEmpty { d.paper = a["paper"].str }
+                if case .number(let w) = a["water"] { d.water = Int(w) }
+                if !a["mood"].str.isEmpty { d.mood = a["mood"].str }
+            }
+            if a["switch"].bool { store.switchTo(mid) }
+            return { [weak store] in
+                guard let store else { return }
+                store.updateMember(mid) { $0 = oldMember }
+                store.setDay(D.today, member: mid) { $0 = oldDay }
+                store.switchTo(oldCurrent)
+            }
+        case "notify":
+            let id = "butler." + a["id"].str
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy-MM-dd H:mm"
+            guard let when = f.date(from: a["when"].str), when > Date() else { return nil }
+            Reminders.once(id: id, title: "⏰ 管家提醒", body: a["text"].str, at: when)
+            return { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id]) }
+        default:
+            return nil
+        }
+    }
 
     private func apply(_ a: JSONValue) {
         switch a["kind"].str {
@@ -351,6 +428,12 @@ final class Butler: ObservableObject {
 
     func undo(message mid: String, segment sid: String) {
         guard let m = messages.first(where: { $0.id == mid }), let s = m.segments.first(where: { $0.id == sid }), let a = s.action, !s.undone else { return }
+        if let u = undos.removeValue(forKey: sid) {
+            u()
+            mutate(mid) { m in if let j = m.segments.firstIndex(where: { $0.id == sid }) { m.segments[j].undone = true } }
+            save()
+            return
+        }
         switch a["kind"].str {
         case "remember": memories.removeAll { $0.id == a["id"].str }
         case "forget": memories.append(MemoryItem(id: a["id"].str, text: a["text"].str))
@@ -362,6 +445,11 @@ final class Butler: ObservableObject {
         mutate(mid) { m in
             if let j = m.segments.firstIndex(where: { $0.id == sid }) { m.segments[j].undone = true }
         }
+        save()
+    }
+
+    func unmarkSaved(message mid: String, draft: String) {
+        mutate(mid) { $0.saved.removeAll { $0 == draft } }
         save()
     }
 
@@ -393,6 +481,7 @@ final class Butler: ObservableObject {
         let ctx: [String: Any] = [
             "today": D.today, "now": D.nowHM(), "member_id": store.currentID, "members": members,
             "memories": memories.map { ["id": $0.id, "text": $0.text] }, "fridge": fridge, "records": records,
+            "day": ["mood": store.day(D.today).mood, "water": store.day(D.today).water, "note": store.day(D.today).note] as [String: Any],
         ]
         let body: [String: Any] = ["messages": msgs, "images": images, "context": ctx]
         return (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
@@ -434,6 +523,7 @@ final class Butler: ObservableObject {
         d["goal"] = m.goal
         d["kcal_target"] = m.kcalTarget
         d["breed"] = m.breed
+        d["reminders"] = ["breakfast": D.hm(m.reminders.breakfast), "lunch": D.hm(m.reminders.lunch), "dinner": D.hm(m.reminders.dinner)]
         return d
     }
 }
@@ -469,5 +559,84 @@ extension Store {
         }
         refreshReminders()
         return meal(m.id)
+    }
+}
+
+// MARK: - 按住说话（系统语音识别，中文）
+
+@MainActor
+final class SpeechInput: ObservableObject {
+    @Published var text = ""
+    @Published var recording = false
+    @Published var error: String?
+
+    private let engine = AVAudioEngine()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
+    private var wantStop = false
+
+    func start() async {
+        text = ""; error = nil; wantStop = false
+        let speechOK = await Self.speechAuth()
+        let micOK = await AVAudioApplication.requestRecordPermission()
+        guard speechOK, micOK else { error = "要在 设置 → 食贴 里打开「麦克风」和「语音识别」"; return }
+        guard !wantStop else { return }          // 手指已经松开了
+        guard let rec = recognizer, rec.isAvailable else { error = "语音识别暂时不可用"; return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            let req = SFSpeechAudioBufferRecognitionRequest()
+            req.shouldReportPartialResults = true
+            request = req
+            let input = engine.inputNode
+            input.removeTap(onBus: 0)
+            Self.tap(input, req)
+            engine.prepare()
+            try engine.start()
+            recording = true
+            task = Self.recognize(rec, req) { [weak self] t in Task { @MainActor in self?.text = t } }
+        } catch {
+            self.error = "录音失败：\(error.localizedDescription)"
+            cleanup()
+        }
+    }
+
+    /// 松手：停止录音，等最后一小段识别出来，返回整句
+    func finish() async -> String {
+        wantStop = true
+        guard recording else { return "" }
+        engine.stop()
+        engine.inputNode.removeTap(onBus: 0)
+        request?.endAudio()
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        cleanup()
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // 下面这几个回调在音频 / 识别线程上执行，放在 nonisolated 里，避免被当成主线程闭包
+    nonisolated private static func speechAuth() async -> Bool {
+        await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
+        }
+    }
+
+    nonisolated private static func tap(_ node: AVAudioInputNode, _ req: SFSpeechAudioBufferRecognitionRequest) {
+        node.installTap(onBus: 0, bufferSize: 1024, format: node.outputFormat(forBus: 0)) { buf, _ in req.append(buf) }
+    }
+
+    nonisolated private static func recognize(_ rec: SFSpeechRecognizer, _ req: SFSpeechAudioBufferRecognitionRequest,
+                                              onText: @escaping @Sendable (String) -> Void) -> SFSpeechRecognitionTask {
+        rec.recognitionTask(with: req) { result, _ in
+            if let t = result?.bestTranscription.formattedString { onText(t) }
+        }
+    }
+
+    private func cleanup() {
+        task?.cancel(); task = nil; request = nil
+        if engine.isRunning { engine.stop(); engine.inputNode.removeTap(onBus: 0) }
+        recording = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }

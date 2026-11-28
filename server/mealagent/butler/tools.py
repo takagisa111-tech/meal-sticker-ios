@@ -28,7 +28,8 @@ PET_GROUPS = ["kibble", "wetfood", "treat", "human"]
 PANTRY = ["盐", "油", "食用油", "生抽", "老抽", "酱油", "醋", "糖", "白糖", "料酒", "水", "清水", "淀粉", "胡椒", "味精", "鸡精",
           "葱", "姜", "蒜", "香油", "芝麻油", "蚝油", "八角", "花椒", "干辣椒", "冰糖", "生粉", "白胡椒粉", "十三香"]
 PANTRY = set(PANTRY) | {"大蒜", "蒜头", "蒜瓣", "小葱", "大葱", "葱花", "姜片", "生姜", "老姜", "香醋", "陈醋", "米醋", "白醋", "麻油",
-                        "凉白开", "冰块", "开水", "热水", "温水", "白砂糖", "红糖", "食盐", "细盐", "黑胡椒", "胡椒粉", "孜然", "桂皮", "香叶", "葱段", "姜丝", "蒜末"}
+                        "凉白开", "冰块", "开水", "热水", "温水", "白砂糖", "红糖", "食盐", "细盐", "黑胡椒", "胡椒粉", "孜然", "桂皮", "香叶", "葱段", "姜丝", "蒜末",
+                        "食用盐", "味素", "味精", "鸡精", "白胡椒", "黑胡椒粉", "蚝油", "生粉", "玉米淀粉", "食用油", "植物油", "花生油"}
 TOOLS = ["刷子", "锅", "刀", "碗", "盘", "筷", "保鲜膜", "微波炉", "烤箱", "剪刀", "牙签", "厨房纸", "砧板", "铲", "勺", "蒸笼", "烤盘", "锡纸", "量杯", "电饭煲", "高压锅", "空气炸锅"]
 SYNONYM = {"西红柿": "番茄", "马铃薯": "土豆", "洋芋": "土豆", "鸡蛋液": "鸡蛋", "蛋": "鸡蛋", "青瓜": "黄瓜", "包菜": "卷心菜", "圆白菜": "卷心菜"}
 HIDE_CATS = ("调料", "饮品", "半成品")
@@ -425,6 +426,11 @@ class Turn:
             self.guides[c["id"]] = c
         return [{"id": c["id"], "title": c["title"], "text": c["text"], "source": c["source"]} for c in hits[:k]]
 
+    # ================= 手账排版 =================
+    def design_journal(self, date: str | None = None, request: str = "", member_id: str | None = None):
+        from .journal import design
+        return design(self, date, request, member_id)
+
     # ================= 写（App 执行）=================
     def remember(self, text: str):
         mid = _id("M")
@@ -449,6 +455,87 @@ class Turn:
         its = [str(x) for x in items if str(x).strip()][:40]
         self.cards.append({"kind": "shopping", "items": its, "note": note})
         return {"ok": True, "items": its, "note": "App 会显示按钮，用户点了才会加进「提醒事项」"}
+
+    # ================= 办一件事（D）=================
+    def plan_occasion(self, date: str | None = None, time: str = "18:30", guests: list | None = None, dishes: int | None = None,
+                      requirements: str = ""):
+        from .occasion import run
+        return run(self, date or self.ctx.today, time or "18:30", guests or [], dishes, requirements)
+
+    # ================= 操作 App（A）=================
+    def _rec(self, meal_id: str) -> dict | None:
+        return next((r for r in self.ctx.records if r.get("id") == meal_id), None)
+
+    def edit_meal(self, meal_id: str, portion: float | None = None, slot: str | None = None, date: str | None = None,
+                  title: str | None = None, kcal: float | None = None):
+        r = self._rec(meal_id)
+        if not r:
+            return {"error": "找不到这条记录，先用 query_records 查 id"}
+        a = {"kind": "edit_meal", "id": meal_id, "title_before": r.get("title")}
+        if portion:
+            a["portion"] = max(0.1, min(5.0, float(portion)))
+        if slot in ("breakfast", "lunch", "dinner", "snack"):
+            a["slot"] = slot
+        if date:
+            a["date"] = date
+        if title:
+            a["title"] = title[:12]
+        if kcal:
+            a["kcal"] = float(kcal)
+        self.emit({"type": "action", "action": a})
+        return {"ok": True, "done": a, "note": "已直接改好，用户可以撤销"}
+
+    def delete_meal(self, meal_id: str):
+        r = self._rec(meal_id)
+        if not r:
+            return {"error": "找不到这条记录"}
+        self.cards.append({"kind": "confirm", "id": _id("C"), "title": f'删除 {r.get("date")} {SLOT_CN.get(r.get("slot"), "")}「{r.get("title")}」？',
+                           "button": "删除", "action": {"kind": "delete_meal", "id": meal_id}})
+        return {"ok": True, "note": "删除需要用户在卡片上确认"}
+
+    def update_settings(self, member_id: str | None = None, reminder_slot: str | None = None, reminder_time: str | None = None,
+                        reminders_on: bool | None = None, paper: str | None = None, paper_scope: str = "today",
+                        weight: float | None = None, goal: str | None = None, avoid: str | None = None, health: str | None = None,
+                        water_cups: int | None = None, mood: str | None = None, switch_to: bool = False):
+        m = self.ctx.member(member_id)
+        a: dict = {"kind": "settings", "member_id": m["id"]}
+        if reminder_slot in ("breakfast", "lunch", "dinner") and reminder_time and re.match(r"^\d{1,2}:\d{2}$", reminder_time):
+            a["reminder"] = {"slot": reminder_slot, "time": reminder_time}
+        if reminders_on is not None:
+            a["reminders_on"] = bool(reminders_on)
+        if paper in ("dots", "grid", "lines", "blank", "kraft", "paws"):
+            a["paper"] = paper
+            a["paper_scope"] = "member" if paper_scope == "member" else "today"
+        if weight:
+            a["weight"] = float(weight)
+        if goal in ("lose", "keep", "gain"):
+            a["goal"] = goal
+        if avoid is not None:
+            a["avoid"] = avoid
+        if health is not None:
+            a["health"] = health
+        if water_cups is not None:
+            a["water"] = max(0, min(20, int(water_cups)))
+        if mood:
+            a["mood"] = mood[:4]
+        if switch_to:
+            a["switch"] = True
+        if len(a) <= 2:
+            return {"error": "没有要改的内容"}
+        self.emit({"type": "action", "action": a})
+        return {"ok": True, "done": a, "note": "已直接改好，用户可以撤销"}
+
+    def share_journal(self, date: str | None = None):
+        self.cards.append({"kind": "share", "date": date or self.ctx.today})
+        return {"ok": True, "note": "App 显示了导出分享按钮"}
+
+    def create_reminder(self, when: str, text: str):
+        """when: 'YYYY-MM-DD HH:MM'（本地时间）"""
+        if not re.match(r"^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}$", when.strip()):
+            return {"error": "when 要写成 YYYY-MM-DD HH:MM"}
+        rid = _id("N")
+        self.emit({"type": "action", "action": {"kind": "notify", "id": rid, "when": when.strip(), "text": text[:60]}})
+        return {"ok": True, "reminder_id": rid}
 
     # ================= 分发 =================
     def call(self, name: str, args: dict):
@@ -519,6 +606,25 @@ SCHEMAS = [
     _f("check_food_safety", "用确定性规则检查食物对某位成员是否安全：过敏原、忌口、猫狗有毒食物、老人咀嚼。", {"foods": A, "member_id": MID}, ["foods"]),
     _f("search_guidelines", "检索膳食指南知识库（《中国居民膳食指南 2022》、老年人膳食指南、ASPCA/AVMA 宠物食物安全），返回带编号的原文要点。",
        {"query": S, "member_id": MID}, ["query"]),
+    _f("design_journal", "给某天的手账做一版设计：纸张、标题、一句手账日记、贴纸摆放、和纸胶带/emoji/印章/便利贴等装饰。程序会自动修正重叠和出界。App 显示预览，用户点「用这版」才会应用。",
+       {"date": DATE, "request": {**S, "description": "用户对风格的要求，如「日系清新」「复古」「可爱一点」"}, "member_id": MID}),
+    _f("plan_occasion", "规划一顿有客人的饭（请客、给爸妈做饭、聚餐、过节）：按每位客人的忌口和身体情况排菜（程序逐条检查），倒推做饭时间线，合并采购清单。",
+       {"date": DATE, "time": {**S, "description": "开饭时间 HH:MM"},
+        "guests": {"type": "array", "items": {"type": "object", "properties": {
+            "name": S, "notes": {**S, "description": "这个人的情况，如「牙不好」「控糖」「花生过敏」「不吃辣」"},
+            "member_id": {**S, "description": "如果是家庭成员，填成员 id"}}}},
+        "dishes": {**I, "description": "几道菜，不填按人数+1"}, "requirements": S}, ["guests"]),
+    _f("edit_meal", "直接修改一条饮食记录（不用确认，用户可撤销）：portion 按比例缩放份量和营养（半份=0.5、多吃了一半=1.5），也能改餐次、日期、菜名、热量。",
+       {"meal_id": S, "portion": N, "slot": SLOT, "date": DATE, "title": S, "kcal": N}, ["meal_id"]),
+    _f("delete_meal", "删除一条饮食记录（App 里要用户点确认）。", {"meal_id": S}, ["meal_id"]),
+    _f("update_settings", "直接改 App 设置（用户可撤销）：某餐提醒时间、开关提醒、手账纸张（今天或以后都用）、体重/目标/忌口/健康情况、今天喝水杯数、心情、切换到这位成员。只填要改的字段。",
+       {"member_id": MID, "reminder_slot": {"type": "string", "enum": ["breakfast", "lunch", "dinner"]}, "reminder_time": {**S, "description": "HH:MM"},
+        "reminders_on": {"type": "boolean"}, "paper": {"type": "string", "enum": ["dots", "grid", "lines", "blank", "kraft", "paws"]},
+        "paper_scope": {"type": "string", "enum": ["today", "member"]}, "weight": N, "goal": {"type": "string", "enum": ["lose", "keep", "gain"]},
+        "avoid": {**S, "description": "完整的忌口/过敏文字（会覆盖原来的）"}, "health": S, "water_cups": I, "mood": {**S, "description": "一个 emoji"},
+        "switch_to": {"type": "boolean"}}),
+    _f("share_journal", "把某天的手账导出成图片分享（App 显示导出按钮）。", {"date": DATE}),
+    _f("create_reminder", "在用户手机上设一个本地提醒（买菜、开始做饭、解冻肉、吃药以外的生活提醒）。", {"when": {**S, "description": "YYYY-MM-DD HH:MM"}, "text": S}, ["when", "text"]),
     _f("remember", "把用户亲口说的、长期有用的个人信息存进长期记忆（一句第三人称陈述）。", {"text": S}, ["text"]),
     _f("forget", "删除一条长期记忆。", {"memory_id": S, "text": {**S, "description": "记忆内容里的关键词"}}),
     _f("update_fridge", "更新冰箱里的食材。", {"add": A, "remove": A}),
@@ -531,7 +637,9 @@ LABELS = {
     "query_records": ("🗂️", "查询你的饮食记录"), "nutrition_gaps": ("📊", "对照膳食指南算缺口"), "search_recipes": ("🔍", "检索菜谱库"),
     "get_recipe": ("📖", "打开菜谱"), "plan_week": ("🗓️", "排菜单并逐条校验"), "check_food_safety": ("🛡️", "安全规则检查"),
     "search_guidelines": ("📚", "查膳食指南"), "remember": ("🧠", "记住"), "forget": ("🧠", "忘掉"), "update_fridge": ("🧊", "更新冰箱"),
-    "add_to_shopping_list": ("🛒", "整理购物清单"),
+    "add_to_shopping_list": ("🛒", "整理购物清单"), "design_journal": ("🎨", "设计手账排版"),
+    "edit_meal": ("✏️", "修改记录"), "delete_meal": ("🗑️", "准备删除记录"), "update_settings": ("⚙️", "修改设置"),
+    "share_journal": ("📤", "准备导出分享"), "create_reminder": ("⏰", "设提醒"), "plan_occasion": ("🍽️", "按每位客人排菜并检查"),
 }
 
 
@@ -568,6 +676,15 @@ def summarize(name: str, args: dict, res) -> str:
             return " ".join(["+" + x for x in args.get("add", []) or []] + ["−" + x for x in args.get("remove", []) or []])
         if name == "add_to_shopping_list":
             return "、".join(res.get("items", [])[:10])
+        if name == "plan_occasion":
+            return res.get("summary", "")
+        if name == "create_reminder":
+            return f'{args.get("when")} {args.get("text")}'
+        if name in ("edit_meal", "update_settings"):
+            d = res.get("done", {})
+            return "、".join(f"{k}={v}" for k, v in d.items() if k not in ("kind", "id", "member_id", "title_before"))
+        if name == "design_journal":
+            return f'{res.get("style")} · {res.get("title")} · {len(res.get("decorations", []))} 个装饰'
         if name == "get_recipe":
             return res.get("title", "")
     except Exception:  # noqa: BLE001

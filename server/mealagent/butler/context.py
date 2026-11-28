@@ -56,6 +56,7 @@ class Ctx:
     records: list[dict] = field(default_factory=list)
     fridge: list[str] = field(default_factory=list)
     images: dict[str, str] = field(default_factory=dict)
+    day: dict = field(default_factory=dict)          # 今天的心情、喝水、小记
     _db: sqlite3.Connection | None = None
 
     @classmethod
@@ -67,7 +68,7 @@ class Ctx:
         today = c.get("today") or dt.date.today().isoformat()
         return cls(today=today, now=c.get("now") or "12:00", member_id=c.get("member_id") or "me", members=members,
                    memories=c.get("memories") or [], records=c.get("records") or [], fridge=c.get("fridge") or [],
-                   images=images or {})
+                   images=images or {}, day=c.get("day") or {})
 
     # ---------- 成员 ----------
     def member(self, mid: str | None = None) -> dict:
@@ -94,6 +95,8 @@ class Ctx:
                 bits.append("忌口/过敏：" + m["avoid"])
             if m.get("health"):
                 bits.append("健康：" + m["health"])
+            if m.get("reminders"):
+                bits.append("提醒 " + " / ".join(f'{SLOT_CN[k]} {v}' for k, v in m["reminders"].items() if k in SLOT_CN))
             if m.get("kcal_target"):
                 bits.append(f'每日目标约 {int(_num(m["kcal_target"]))} kcal')
             out.append("，".join(bits) + "）")
@@ -110,7 +113,7 @@ class Ctx:
         if not rs:
             return "今天还没有记录。"
         kcal = sum(_num(r.get("kcal")) for r in rs)
-        items = "；".join(f'{SLOT_CN.get(r.get("slot"), r.get("slot"))} {r.get("title") or "未命名"} {round(_num(r.get("kcal")))}kcal' for r in rs)
+        items = "；".join(f'{SLOT_CN.get(r.get("slot"), r.get("slot"))} {r.get("title") or "未命名"} {round(_num(r.get("kcal")))}kcal（id={r.get("id")}，{r.get("time", "")}）' for r in rs)
         tgt = _num(m.get("kcal_target"))
         left = f"，目标 {int(tgt)}，还剩约 {int(tgt - kcal)} kcal" if tgt else ""
         return f"今天已记录：{items}。合计 {round(kcal)} kcal{left}。"

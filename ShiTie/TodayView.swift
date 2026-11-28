@@ -558,14 +558,19 @@ struct PaperView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var liveScale: CGFloat = 1
     @State private var liveAngle: Angle = .zero
+    @State private var decoDrag: String?
+    @State private var decoOffset: CGSize = .zero
 
     var body: some View {
         GeometryReader { geo in
             let W = geo.size.width, H = geo.size.height
             let meals = store.meals(on: date)
             let member = store.member
+            let log = store.day(date)
+            let paper = PaperStyle(rawValue: log.paper ?? "") ?? member.paper
+            let decos = log.decos ?? []
             ZStack(alignment: .topLeading) {
-                PaperBackground(style: member.paper, imageName: member.paperImage)
+                PaperBackground(style: paper, imageName: member.paperImage)
                     .contentShape(Rectangle())
                     .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { selected = nil } }
                 Grain(opacity: 0.8)
@@ -574,11 +579,11 @@ struct PaperView: View {
                     Text(String(format: "%02d.%02d", D.month(date), D.day(date)))
                         .font(.system(size: W * 0.085, weight: .medium, design: .serif))
                         .foregroundStyle(Color.ink)
-                    Text("\(member.displayName) · 星期\(D.weekday(date)) \(store.day(date).mood)")
+                    Text((log.title ?? "").isEmpty ? "\(member.displayName) · 星期\(D.weekday(date)) \(log.mood)" : "\(log.title ?? "") · 星期\(D.weekday(date)) \(log.mood)")
                         .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.ink2)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(member.paper == .custom ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.clear))
+                .background(paper == .custom ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.clear))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .frame(width: W)
                 .padding(.top, H * 0.045)
@@ -595,8 +600,21 @@ struct PaperView: View {
                         .allowsHitTesting(false)
                 }
 
+                ForEach(decos.filter { $0.kind != "tape" }) { d in decoItem(d, W: W, H: H) }
+
                 ForEach(meals) { m in
                     sticker(m, W: W, H: H)
+                }
+
+                ForEach(decos.filter { $0.kind == "tape" }) { d in decoItem(d, W: W, H: H).zIndex(2000) }
+
+                if let c = log.caption, !c.isEmpty {
+                    Text(c).font(.system(size: 12.5, design: .serif)).italic().foregroundStyle(Color.ink2)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(paper == .custom ? Color.white.opacity(0.7) : Color.clear).clipShape(Capsule())
+                        .frame(width: W - 28).position(x: W / 2, y: H - 34)
+                        .allowsHitTesting(false)
                 }
 
                 HStack {
@@ -615,6 +633,36 @@ struct PaperView: View {
         }
         .aspectRatio(4.0 / 5.0, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
+    /// 装饰物：拖动挪位置，长按删除
+    private func decoItem(_ d: Deco, W: CGFloat, H: CGFloat) -> some View {
+        let isDrag = decoDrag == d.id
+        return DecoView(deco: d, W: W)
+            .position(x: CGFloat(d.x) * W + (isDrag ? decoOffset.width : 0), y: CGFloat(d.y) * H + (isDrag ? decoOffset.height : 0))
+            .allowsHitTesting(interactive)
+            .gesture(
+                DragGesture(minimumDistance: 4)
+                    .onChanged { v in decoDrag = d.id; decoOffset = v.translation }
+                    .onEnded { v in
+                        store.setDay(date) { log in
+                            guard var list = log.decos, let i = list.firstIndex(where: { $0.id == d.id }) else { return }
+                            list[i].x = min(0.97, max(0.03, d.x + v.translation.width / W))
+                            list[i].y = min(0.97, max(0.03, d.y + v.translation.height / H))
+                            log.decos = list
+                        }
+                        decoDrag = nil
+                        decoOffset = .zero
+                    }
+            )
+            .contextMenu {
+                Button(role: .destructive) {
+                    store.setDay(date) { log in log.decos?.removeAll { $0.id == d.id } }
+                } label: { Label("删除这个装饰", systemImage: "trash") }
+                Button(role: .destructive) {
+                    store.setDay(date) { log in log.decos = nil; log.title = nil; log.caption = nil; log.paper = nil }
+                } label: { Label("清空全部装饰", systemImage: "eraser") }
+            }
     }
 
     /// 双指：捏合缩放 + 拧动旋转，作用在选中的贴纸上；没选中时自动选手指附近的那张

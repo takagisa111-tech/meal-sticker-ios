@@ -14,6 +14,8 @@ struct ButlerView: View {
     @State private var showLibrary = false
     @State private var sheet: ButlerSheet?
     @FocusState private var focused: Bool
+    @StateObject private var speech = SpeechInput()
+    @State private var holding = false
 
     var body: some View {
         NavigationStack {
@@ -72,6 +74,12 @@ struct ButlerView: View {
         }
         .fullScreenCover(isPresented: $showCamera) { CameraPicker { photo = $0 }.ignoresSafeArea() }
         .photosPicker(isPresented: $showLibrary, selection: $pickerItem, matching: .images)
+        .onChange(of: butler.draft) { _, d in
+            if let d { input = d; butler.draft = nil; focused = true }
+        }
+        .onAppear {
+            if let d = butler.draft { input = d; butler.draft = nil; focused = true }
+        }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
             Task {
@@ -107,6 +115,20 @@ struct ButlerView: View {
 
     private var composer: some View {
         VStack(spacing: 8) {
+            if holding || speech.recording {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.brand)
+                        .symbolEffect(.variableColor.iterative, isActive: speech.recording)
+                    Text(speech.text.isEmpty ? "在听…说完松开就发送" : speech.text)
+                        .font(.system(size: 15)).foregroundStyle(speech.text.isEmpty ? Color.ink3 : Color.ink).lineLimit(3)
+                    Spacer(minLength: 0)
+                }
+                .padding(12).background(Color.brandSoft).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .transition(.opacity)
+            }
+            if let e = speech.error, !holding {
+                Text(e).font(.system(size: 12)).foregroundStyle(Color.tomato).frame(maxWidth: .infinity, alignment: .leading)
+            }
             if let p = photo {
                 HStack {
                     ZStack(alignment: .topTrailing) {
@@ -128,7 +150,7 @@ struct ButlerView: View {
                     Image(systemName: "plus").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.ink)
                         .frame(width: 36, height: 36).background(Color.fill).clipShape(Circle())
                 }
-                TextField(photo == nil ? "问管家，或者说说吃了什么" : "补充一句（可不填）", text: $input, axis: .vertical)
+                TextField(photo == nil ? "问管家，或按住 🎙 说话" : "补充一句（可不填）", text: $input, axis: .vertical)
                     .lineLimit(1...5)
                     .font(.system(size: 16))
                     .focused($focused)
@@ -138,6 +160,27 @@ struct ButlerView: View {
                         Image(systemName: "stop.fill").font(.system(size: 13)).foregroundStyle(.white)
                             .frame(width: 36, height: 36).background(Color.ink).clipShape(Circle())
                     }
+                } else if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && photo == nil {
+                    // 没打字时是麦克风：按住说话，松开发送
+                    Image(systemName: holding ? "mic.fill" : "mic")
+                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(holding ? .white : Color.ink)
+                        .frame(width: 36, height: 36).background(holding ? Color.brand : Color.fill).clipShape(Circle())
+                        .scaleEffect(holding ? 1.15 : 1)
+                        .animation(.easeOut(duration: 0.15), value: holding)
+                        .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 60, perform: {}, onPressingChanged: { pressing in
+                            if pressing {
+                                holding = true
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                Task { await speech.start() }
+                            } else {
+                                holding = false
+                                Task {
+                                    let t = await speech.finish()
+                                    if !t.isEmpty { butler.send(t, image: nil, store: store) }
+                                }
+                            }
+                        })
+                        .accessibilityLabel("按住说话")
                 } else {
                     let ready = !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || photo != nil
                     Button {
@@ -215,7 +258,12 @@ struct AssistantMessage: View {
                 case "steps":
                     StepsView(steps: seg.steps, live: isLive && seg.id == message.segments.last(where: { $0.kind == "steps" })?.id)
                 case "action":
-                    if let a = seg.action { ActionChip(action: a, undone: seg.undone) { butler.undo(message: message.id, segment: seg.id) } }
+                    if let a = seg.action {
+                        ActionChip(action: a, undone: seg.undone,
+                                   canUndo: ["remember", "forget", "fridge"].contains(a["kind"].str) || butler.canUndo(seg.id)) {
+                            butler.undo(message: message.id, segment: seg.id)
+                        }
+                    }
                 case "card":
                     if let c = seg.card {
                         AgentCardView(card: c, message: message, superseded: replaced.contains(c["id"].str), send: send)
@@ -361,22 +409,56 @@ struct StepRow: View {
 struct ActionChip: View {
     let action: JSONValue
     let undone: Bool
+    var canUndo = true
     let undo: () -> Void
     var body: some View {
         HStack(spacing: 8) {
             Text(icon).font(.system(size: 13))
             Text(label).font(.system(size: 12.5)).foregroundStyle(undone ? Color.ink3 : Color.ink2).strikethrough(undone).lineLimit(2)
             Spacer(minLength: 4)
-            if !undone { Button("撤销", action: undo).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.brand) }
-            else { Text("已撤销").font(.system(size: 11)).foregroundStyle(Color.ink3) }
+            if undone { Text("已撤销").font(.system(size: 11)).foregroundStyle(Color.ink3) }
+            else if canUndo { Button("撤销", action: undo).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.brand) }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color.brandSoft.opacity(undone ? 0.4 : 1))
         .clipShape(Capsule())
     }
-    private var icon: String { action["kind"].str == "fridge" ? "🧊" : "🧠" }
-    private var label: String {
+    private var icon: String {
         switch action["kind"].str {
+        case "fridge": return "🧊"
+        case "edit_meal": return "✏️"
+        case "settings": return "⚙️"
+        case "notify": return "⏰"
+        default: return "🧠"
+        }
+    }
+    private var label: String {
+        let slotNames = ["breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"]
+        switch action["kind"].str {
+        case "edit_meal":
+            var parts: [String] = []
+            if action["portion"].num > 0 { parts.append("份量 ×\(action["portion"].str)") }
+            if let s = slotNames[action["slot"].str] { parts.append("改到\(s)") }
+            if !action["date"].str.isEmpty { parts.append("改到 \(action["date"].str)") }
+            if !action["title"].str.isEmpty { parts.append("改名「\(action["title"].str)」") }
+            if action["kcal"].num > 0 { parts.append("\(action["kcal"].int) kcal") }
+            return "已改「\(action["title_before"].str)」：" + parts.joined(separator: "，")
+        case "settings":
+            var parts: [String] = []
+            let r = action["reminder"]
+            if let s = slotNames[r["slot"].str] { parts.append("\(s)提醒 \(r["time"].str)") }
+            if case .bool(let on) = action["reminders_on"] { parts.append(on ? "打开提醒" : "关闭提醒") }
+            if !action["paper"].str.isEmpty { parts.append("换纸张") }
+            if action["weight"].num > 0 { parts.append("体重 \(action["weight"].str)kg") }
+            if !action["goal"].str.isEmpty { parts.append(["lose": "目标减脂", "keep": "目标保持", "gain": "目标增重"][action["goal"].str] ?? "") }
+            if case .string = action["avoid"] { parts.append("忌口：\(action["avoid"].str)") }
+            if case .string = action["health"] { parts.append("健康：\(action["health"].str)") }
+            if case .number = action["water"] { parts.append("喝水 \(action["water"].int) 杯") }
+            if !action["mood"].str.isEmpty { parts.append("心情 \(action["mood"].str)") }
+            if action["switch"].bool { parts.append("切换成员") }
+            return "已设置：" + parts.joined(separator: "，")
+        case "notify":
+            return "提醒 \(action["when"].str.suffix(11))：\(action["text"].str)"
         case "remember": return "记住了：" + action["text"].str
         case "forget": return "忘掉了：" + action["text"].str
         case "fridge":
@@ -404,6 +486,10 @@ struct AgentCardView: View {
         case "safety": SafetyCard(card: card)
         case "shopping": ShoppingCard(items: card["items"].strs, note: card["note"].str)
         case "sources": SourcesCard(card: card)
+        case "journal": JournalCard(card: card, message: message, send: send)
+        case "confirm": ConfirmCard(card: card, message: message)
+        case "share": ShareCard(date: card["date"].str)
+        case "occasion": OccasionCard(card: card)
         default: EmptyView()
         }
     }
@@ -1013,6 +1099,322 @@ struct AgentServerView: View {
                     status = j?["key"].bool == true ? "✓ 连上了（模型 \(j?["model"].str ?? "")）" : "连上了，但服务器还没配置 DeepSeek Key"
                 } else { status = "服务器返回异常" }
             } catch { status = "连不上：\(error.localizedDescription)" }
+        }
+    }
+}
+
+// MARK: - 手账装饰物
+
+struct DecoView: View {
+    let deco: Deco
+    let W: CGFloat
+    var body: some View {
+        let c = Color(hex: deco.color)
+        let s = W * CGFloat(deco.size)
+        Group {
+            switch deco.kind {
+            case "tape":
+                Tape(color: c).scaleEffect(s / 90)
+                    .frame(width: s, height: s * 24 / 90)
+            case "emoji":
+                Text(deco.text).font(.system(size: s))
+            case "icon":
+                Image(systemName: deco.text).font(.system(size: s, weight: .regular)).foregroundStyle(c)
+            case "text":
+                Text(deco.text)
+                    .font(.system(size: s, weight: .semibold, design: .rounded)).foregroundStyle(c)
+                    .padding(.horizontal, s * 0.2)
+                    .background(alignment: .bottom) {
+                        if deco.highlight {
+                            Rectangle().fill(Color(hex: "#F2D38B").opacity(0.75)).frame(height: s * 0.55)
+                        }
+                    }
+                    .fixedSize()
+            case "note":
+                Text(deco.text)
+                    .font(.system(size: max(9, W * 0.03), weight: .medium, design: .rounded)).foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.leading)
+                    .padding(W * 0.02)
+                    .frame(width: s, alignment: .leading)
+                    .background(ZStack { Color.white; c.opacity(0.45) })
+                    .shadow(color: .black.opacity(0.12), radius: 2, y: 2)
+            case "stamp":
+                Text(deco.text)
+                    .font(.system(size: s * 0.2, weight: .heavy, design: .rounded)).foregroundStyle(c)
+                    .multilineTextAlignment(.center).minimumScaleFactor(0.6)
+                    .padding(s * 0.12)
+                    .frame(width: s, height: s)
+                    .overlay(Circle().stroke(c, lineWidth: max(1.5, s * 0.035)))
+                    .overlay(Circle().inset(by: s * 0.08).stroke(c.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                    .opacity(0.85)
+            default:
+                EmptyView()
+            }
+        }
+        .rotationEffect(.degrees(deco.rot))
+    }
+}
+
+extension Deco {
+    static func from(_ j: JSONValue) -> Deco {
+        Deco(kind: j["kind"].str, text: j["text"].str, x: j["x"].num, y: j["y"].num, rot: j["rot"].num,
+             size: j["size"].num > 0 ? j["size"].num : 0.06, color: j["color"].str.isEmpty ? "#3A3A36" : j["color"].str,
+             highlight: j["highlight"].bool)
+    }
+}
+
+// MARK: - 管家设计的手账：预览 + 一键应用
+
+struct JournalPreview: View {
+    @EnvironmentObject var store: Store
+    let card: JSONValue
+
+    var body: some View {
+        GeometryReader { geo in
+            let W = geo.size.width, H = geo.size.height
+            let member = store.member(card["member_id"].str) ?? store.member
+            let date = card["date"].str.isEmpty ? D.today : card["date"].str
+            let decos = card["decos"].arr.map(Deco.from)
+            ZStack(alignment: .topLeading) {
+                PaperBackground(style: PaperStyle(rawValue: card["paper"].str) ?? member.paper, imageName: member.paperImage)
+                Grain(opacity: 0.8)
+                Tape(color: Color(red: 0.86, green: 0.82, blue: 0.70).opacity(0.75)).rotationEffect(.degrees(-3)).position(x: W / 2, y: 9)
+                VStack(spacing: 3) {
+                    Text(String(format: "%02d.%02d", D.month(date), D.day(date)))
+                        .font(.system(size: W * 0.085, weight: .medium, design: .serif)).foregroundStyle(Color.ink)
+                    Text("\(card["title"].str) · 星期\(D.weekday(date))")
+                        .font(.system(size: 11, weight: .medium)).foregroundStyle(Color.ink2)
+                }
+                .frame(width: W).padding(.top, H * 0.045)
+                ForEach(decos.filter { $0.kind != "tape" }) { d in
+                    DecoView(deco: d, W: W).position(x: CGFloat(d.x) * W, y: CGFloat(d.y) * H)
+                }
+                ForEach(Array(card["stickers"].arr.enumerated()), id: \.offset) { _, s in
+                    if let m = store.meal(s["id"].str) {
+                        VStack(spacing: 0) {
+                            if let img = store.image(m.sticker) {
+                                Image(uiImage: img).resizable().scaledToFit()
+                                    .shadow(color: Color(red: 0.31, green: 0.2, blue: 0.08).opacity(0.25), radius: 3, y: 3)
+                            } else {
+                                Text(m.emoji.isEmpty ? "🍽️" : m.emoji).font(.system(size: W * 0.12))
+                            }
+                            Text(m.title).font(.system(size: 9, weight: .medium)).foregroundStyle(Color.ink2).lineLimit(1).fixedSize()
+                        }
+                        .frame(width: W * CGFloat(s["scale"].num))
+                        .rotationEffect(.degrees(s["rot"].num))
+                        .position(x: CGFloat(s["x"].num) * W, y: CGFloat(s["y"].num) * H)
+                    }
+                }
+                ForEach(decos.filter { $0.kind == "tape" }) { d in
+                    DecoView(deco: d, W: W).position(x: CGFloat(d.x) * W, y: CGFloat(d.y) * H)
+                }
+                Text(card["caption"].str).font(.system(size: 11, design: .serif)).italic().foregroundStyle(Color.ink2)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: W - 24).position(x: W / 2, y: H - 22)
+            }
+        }
+        .aspectRatio(4.0 / 5.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.line, lineWidth: 0.5))
+    }
+}
+
+private struct JournalBackup {
+    var day: DayLog
+    var meals: [String: (Double, Double, Double, Double)]
+}
+
+struct JournalCard: View {
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var butler: Butler
+    let card: JSONValue
+    let message: ChatMessage
+    let send: (String) -> Void
+    @State private var backup: JournalBackup?
+
+    private var cid: String { card["id"].str }
+    private var applied: Bool { message.saved.contains(cid) }
+    private var memberID: String { card["member_id"].str.isEmpty ? store.currentID : card["member_id"].str }
+    private var date: String { card["date"].str.isEmpty ? D.today : card["date"].str }
+
+    var body: some View {
+        CardBox {
+            HStack {
+                Text("🎨 " + (card["style"].str.isEmpty ? "手账设计" : card["style"].str)).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                Spacer()
+                if card["fixes"].int > 0 { Pill(text: "自动修正 \(card["fixes"].int) 处排版", style: .blue) }
+            }
+            JournalPreview(card: card)
+            if !card["caption"].str.isEmpty {
+                Text("「\(card["caption"].str)」").font(.system(size: 13, design: .serif)).foregroundStyle(Color.ink2)
+            }
+            if applied {
+                HStack {
+                    Label("已用到\(date == D.today ? "今天" : "\(D.month(date))月\(D.day(date))日")的手账", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.brand)
+                    Spacer()
+                    if backup != nil { Button("撤销", action: undo).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.ink2) }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Button(action: apply) { Label("用这版", systemImage: "wand.and.stars") }.buttonStyle(PrimaryButton())
+                    Button { send("换一版不一样的风格") } label: { Label("换一版", systemImage: "arrow.triangle.2.circlepath") }
+                        .buttonStyle(SoftButton()).disabled(butler.streaming)
+                }
+            }
+        }
+    }
+
+    private func apply() {
+        var snap = JournalBackup(day: store.day(date, member: memberID), meals: [:])
+        for s in card["stickers"].arr {
+            let id = s["id"].str
+            guard let m = store.meal(id) else { continue }
+            snap.meals[id] = (m.x, m.y, m.rot, m.scale)
+            store.update(id) { $0.x = s["x"].num; $0.y = s["y"].num; $0.rot = s["rot"].num; $0.scale = s["scale"].num }
+        }
+        let decos = card["decos"].arr.map(Deco.from)
+        store.setDay(date, member: memberID) { d in
+            d.paper = card["paper"].str.isEmpty ? nil : card["paper"].str
+            d.title = card["title"].str
+            d.caption = card["caption"].str
+            d.decos = decos
+        }
+        backup = snap
+        butler.markSaved(message: message.id, draft: cid)
+        store.flash("手账换好了，去「今日」看看 ✨")
+    }
+
+    private func undo() {
+        guard let b = backup else { return }
+        for (id, v) in b.meals { store.update(id) { $0.x = v.0; $0.y = v.1; $0.rot = v.2; $0.scale = v.3 } }
+        store.setDay(date, member: memberID) { $0 = b.day }
+        backup = nil
+        butler.unmarkSaved(message: message.id, draft: cid)
+        store.flash("已恢复原来的手账")
+    }
+}
+
+// MARK: - 需要确认的操作（删除记录）
+
+struct ConfirmCard: View {
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var butler: Butler
+    let card: JSONValue
+    let message: ChatMessage
+    private var done: Bool { message.saved.contains(card["id"].str) }
+    var body: some View {
+        CardBox(padding: 14) {
+            Text(card["title"].str).font(.system(size: 14.5, weight: .medium)).foregroundStyle(Color.ink)
+            if done {
+                Label("已删除", systemImage: "checkmark.circle.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.ink2)
+            } else if store.meal(card["action"]["id"].str) == nil {
+                Text("这条记录已经不在了").font(.system(size: 12.5)).foregroundStyle(Color.ink3)
+            } else {
+                Button(role: .destructive) {
+                    store.delete(card["action"]["id"].str)
+                    butler.markSaved(message: message.id, draft: card["id"].str)
+                    store.flash("已删除")
+                } label: { Label(card["button"].str.isEmpty ? "确认" : card["button"].str, systemImage: "trash") }
+                .buttonStyle(SoftButton(color: .tomato))
+            }
+        }
+    }
+}
+
+struct ShareCard: View {
+    let date: String
+    @State private var open = false
+    var body: some View {
+        CardBox(padding: 14) {
+            HStack {
+                Text("📤 \(date == D.today ? "今天" : "\(D.month(date))月\(D.day(date))日")的手账").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.ink)
+                Spacer()
+            }
+            Button { open = true } label: { Label("生成图片并分享", systemImage: "square.and.arrow.up") }.buttonStyle(PrimaryButton())
+        }
+        .sheet(isPresented: $open) { ExportView(date: date.isEmpty ? D.today : date) }
+    }
+}
+
+// MARK: - 办一件事：请客 / 给家人做饭
+
+struct OccasionCard: View {
+    @EnvironmentObject var store: Store
+    let card: JSONValue
+    @State private var cooking: JSONValue?
+    @State private var reminded: Set<String> = []
+
+    private func when(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f.date(from: s)
+    }
+
+    var body: some View {
+        CardBox {
+            HStack {
+                Text("🍽️ \(card["people"].int) 人 · \(D.month(card["date"].str))月\(D.day(card["date"].str))日 \(card["time"].str)")
+                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                Spacer()
+                Pill(text: card["passed"].bool ? "✓ 每道菜都适合每个人" : "有 \(card["violations"].arr.count) 处没满足", style: card["passed"].bool ? .green : .red)
+            }
+            FlowLayout(spacing: 6) {
+                ForEach(Array(card["guests"].arr.enumerated()), id: \.offset) { _, g in
+                    Pill(text: g["name"].str + (g["rules"].strs.isEmpty ? "" : "：" + g["rules"].strs.joined(separator: "、")), style: .yellow)
+                }
+            }
+            if !card["why"].str.isEmpty { Text(card["why"].str).font(.system(size: 12.5)).foregroundStyle(Color.ink2) }
+            ForEach(Array(card["dishes"].arr.enumerated()), id: \.offset) { _, d in
+                Button {
+                    let r = card["details"][d["recipe_id"].str]
+                    if !r.isNull { cooking = r }
+                } label: {
+                    HStack {
+                        Text(d["title"].str).font(.system(size: 14.5)).foregroundStyle(Color.ink)
+                        Pill(text: d["category"].str)
+                        Spacer()
+                        Text("\(d["minutes"].int) 分钟").font(.system(size: 12)).foregroundStyle(Color.ink2)
+                        Image(systemName: "chevron.right").font(.system(size: 10)).foregroundStyle(Color.ink3)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(card["violations"].strs, id: \.self) { v in Text("· " + v).font(.system(size: 12)).foregroundStyle(Color.tomato) }
+            Divider().overlay(Color.line)
+            Text("时间线").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.ink3)
+            ForEach(Array(card["timeline"].arr.enumerated()), id: \.offset) { i, t in
+                let key = "\(i)"
+                HStack(alignment: .top, spacing: 10) {
+                    Text(String(t["time"].str.suffix(5))).font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundStyle(Color.brand).frame(width: 44, alignment: .leading)
+                    Text(t["text"].str).font(.system(size: 13.5)).foregroundStyle(Color.ink)
+                    Spacer()
+                    if let w = when(t["time"].str), w > Date() {
+                        Button {
+                            Reminders.once(id: "occasion.\(card["date"].str).\(i)", title: "🍽️ " + t["text"].str, body: "\(card["time"].str) 开饭", at: w)
+                            reminded.insert(key)
+                        } label: { Image(systemName: reminded.contains(key) ? "bell.fill" : "bell").foregroundStyle(reminded.contains(key) ? Color.brand : Color.ink3) }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                Button {
+                    for (i, t) in card["timeline"].arr.enumerated() {
+                        if let w = when(t["time"].str), w > Date() {
+                            Reminders.once(id: "occasion.\(card["date"].str).\(i)", title: "🍽️ " + t["text"].str, body: "\(card["time"].str) 开饭", at: w)
+                            reminded.insert("\(i)")
+                        }
+                    }
+                    store.flash("已按时间线设好 \(reminded.count) 个提醒")
+                } label: { Label("全部设提醒", systemImage: "bell.badge") }
+                .buttonStyle(PrimaryButton())
+                if !card["shopping"].strs.isEmpty { AddShoppingButton(items: card["shopping"].strs, compact: true) }
+            }
+        }
+        .fullScreenCover(item: Binding(get: { cooking.map { RecipeBox(recipe: $0) } }, set: { cooking = $0?.recipe })) { b in
+            CookingView(recipe: b.recipe)
         }
     }
 }
