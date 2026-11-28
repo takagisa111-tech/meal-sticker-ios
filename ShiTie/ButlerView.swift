@@ -45,10 +45,7 @@ struct ButlerView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { MemberMenu(compact: true) }
                 ToolbarItem(placement: .principal) {
-                    VStack(spacing: 0) {
-                        Text("管家").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
-                        Text("在帮 \(store.member.displayName)").font(.system(size: 10.5)).foregroundStyle(Color.ink3)
-                    }
+                    Text("管家").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()

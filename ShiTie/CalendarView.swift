@@ -28,7 +28,6 @@ struct CalendarView: View {
                     if !inSheet {
                         HStack(alignment: .bottom) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("记录总览").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.ink2)
                                 Text("日历").font(.system(size: 30, weight: .bold)).foregroundStyle(Color.ink)
                             }
                             Spacer()

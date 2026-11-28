@@ -19,7 +19,6 @@ struct EatView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(store.kind.isPet ? "结合本周的热量与零食情况给出建议" : "结合本周膳食结构，推荐下一餐吃什么、去哪吃").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.ink2).lineLimit(1)
                             Text(store.kind.isPet ? "喂养建议" : "推荐").font(.system(size: 30, weight: .bold)).foregroundStyle(Color.ink)
                         }
                         Spacer()
