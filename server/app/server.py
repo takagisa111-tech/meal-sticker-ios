@@ -56,13 +56,30 @@ def health():
 
 
 @app.post("/api/agent")
-async def chat(request: Request, x_app_token: str = Header(default="")):
-    if TOKEN and x_app_token != TOKEN:
+async def chat(request: Request, x_app_token: str = Header(default=""), x_deepseek_key: str = Header(default="")):
+    # 用服务器自己的 Key 时必须带口令；App 带了自己的 Key 就用它的额度，不需要口令
+    if TOKEN and x_app_token != TOKEN and not x_deepseek_key:
         raise HTTPException(401, "token 不对")
     body = await request.json()
 
+    key = x_deepseek_key.strip()
+
     def events():
-        for ev in agent.run(body):
+        # agent 在单独的线程里跑：这一轮用的 Key 放在这个线程的 contextvar 里，工具线程会复制过去
+        import queue
+        from mealagent.llm import request_key
+        q: queue.Queue = queue.Queue()
+
+        def produce():
+            request_key.set(key)
+            try:
+                for ev in agent.run(body):
+                    q.put(ev)
+            finally:
+                q.put(None)
+
+        threading.Thread(target=produce, daemon=True).start()
+        while (ev := q.get()) is not None:
             yield "data: " + json.dumps(ev, ensure_ascii=False, default=str) + "\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream",

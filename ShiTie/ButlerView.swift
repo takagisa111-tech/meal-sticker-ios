@@ -1062,6 +1062,7 @@ struct FridgeListView: View {
 }
 
 struct AgentServerView: View {
+    @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State private var url = AgentConfig.url
     @State private var token = AgentConfig.token
@@ -1071,10 +1072,10 @@ struct AgentServerView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("http://localhost:8765", text: $url).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    TextField(AgentConfig.cloud, text: $url).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("口令（服务器设置了 APP_TOKEN 才需要）", text: $token)
                 } header: { Text("管家服务器") } footer: {
-                    Text("模拟器：http://localhost:8765\n真机：和 Mac 连同一个 Wi-Fi，填 run_app.command 窗口里打印的 http://192.168.x.x:8765\n部署到云上之后填 https 地址。")
+                    Text("默认是云端：\(AgentConfig.cloud)\n管家会用你在「我的」里填的 DeepSeek Key，服务器不保存。\n本地调试：模拟器填 http://localhost:8765。")
                 }
                 Section {
                     Button { test() } label: { HStack { Text("测试连接"); Spacer(); if testing { ProgressView() } } }
@@ -1083,7 +1084,10 @@ struct AgentServerView: View {
             }
             .navigationTitle("服务器设置")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("保存") { AgentConfig.url = url; AgentConfig.token = token; dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("保存") { AgentConfig.url = url; AgentConfig.token = token; dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("用云端") { url = AgentConfig.cloud } }
+            }
         }
     }
     private func test() {
@@ -1096,7 +1100,9 @@ struct AgentServerView: View {
                 let (d, r) = try await URLSession.shared.data(from: u)
                 let j = try? JSONDecoder().decode(JSONValue.self, from: d)
                 if (r as? HTTPURLResponse)?.statusCode == 200, j?["ok"].bool == true {
-                    status = j?["key"].bool == true ? "✓ 连上了（模型 \(j?["model"].str ?? "")）" : "连上了，但服务器还没配置 DeepSeek Key"
+                    if j?["key"].bool == true { status = "✓ 连上了（模型 \(j?["model"].str ?? "")）" }
+                    else if !store.apiKey.isEmpty { status = "✓ 连上了（用你 App 里的 DeepSeek Key）" }
+                    else { status = "连上了，但还缺 DeepSeek Key：去「我的」里填一下" }
                 } else { status = "服务器返回异常" }
             } catch { status = "连不上：\(error.localizedDescription)" }
         }

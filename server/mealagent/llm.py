@@ -12,16 +12,20 @@ from PIL import Image, ImageOps
 from . import config
 from .schema import RunStats
 
-_client = None
+import contextvars
+
+_clients: dict[str, OpenAI] = {}
+# App 可以随请求带上自己的 DeepSeek Key（请求头 X-DeepSeek-Key），这一轮对话就用它；没带就用服务器的 .env
+request_key: contextvars.ContextVar[str] = contextvars.ContextVar("request_key", default="")
 
 
 def client() -> OpenAI:
-    global _client
-    if _client is None:
-        if not config.DEEPSEEK_API_KEY:
-            raise RuntimeError("缺少 DEEPSEEK_API_KEY，请在 .env 里填写")
-        _client = OpenAI(api_key=config.DEEPSEEK_API_KEY, base_url=config.DEEPSEEK_BASE_URL, timeout=150)
-    return _client
+    key = request_key.get() or config.DEEPSEEK_API_KEY
+    if not key:
+        raise RuntimeError("缺少 DeepSeek Key：服务器没配置，App 也没带上")
+    if key not in _clients:
+        _clients[key] = OpenAI(api_key=key, base_url=config.DEEPSEEK_BASE_URL, timeout=150)
+    return _clients[key]
 
 
 def encode_image(img: Image.Image, max_side: int = 1024, quality: int = 82) -> str:

@@ -116,8 +116,19 @@ private struct ButlerFile: Codable {
 // MARK: - 服务器设置
 
 enum AgentConfig {
+    static let cloud = "https://shitie-butler.onrender.com"
     static var url: String {
-        get { UserDefaults.standard.string(forKey: "agentURL") ?? "http://localhost:8765" }
+        get {
+            // 之前调试时填过的局域网地址，升级后自动换成云端（之后用户自己改的保留）
+            let d = UserDefaults.standard
+            if !d.bool(forKey: "agentURLCloud") {
+                d.set(true, forKey: "agentURLCloud")
+                if let old = d.string(forKey: "agentURL"), old.contains("localhost") || old.contains("172.20.") || old.contains("192.168.") {
+                    d.removeObject(forKey: "agentURL")
+                }
+            }
+            return d.string(forKey: "agentURL") ?? cloud
+        }
         set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "agentURL") }
     }
     static var token: String {
@@ -260,13 +271,16 @@ final class Butler: ObservableObject {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !AgentConfig.token.isEmpty { req.setValue(AgentConfig.token, forHTTPHeaderField: "X-App-Token") }
+        // 用 App 里已有的 DeepSeek Key（和识图用的同一个），服务器不用再单独配置
+        let key = store.apiKey
+        if !key.isEmpty { req.setValue(key, forHTTPHeaderField: "X-DeepSeek-Key") }
         req.httpBody = body
         do {
             let (bytes, resp) = try await URLSession.shared.bytes(for: req)
             if let h = resp as? HTTPURLResponse, h.statusCode != 200 {
                 var msg = ""
                 for try await line in bytes.lines { msg += line }
-                mutate(aid) { $0.error = h.statusCode == 401 ? "服务器口令不对（服务器设置 → 口令）" : "服务器出错（\(h.statusCode)）\(msg.prefix(120))" }
+                mutate(aid) { $0.error = h.statusCode == 401 ? "服务器要口令或 DeepSeek Key（我的 → DeepSeek API Key）" : "服务器出错（\(h.statusCode)）\(msg.prefix(120))" }
                 return
             }
             for try await line in bytes.lines {
@@ -282,7 +296,9 @@ final class Butler: ObservableObject {
             let tip = (error as? URLError).map { e -> String in
                 switch e.code {
                 case .cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost, .notConnectedToInternet:
-                    return "连不上管家服务器（\(AgentConfig.url)）。确认 Mac 上的 run_app.command 在运行，真机要和 Mac 在同一个 Wi-Fi。"
+                    return AgentConfig.url.contains("onrender.com")
+                        ? "连不上云端管家（可能在休眠，第一次唤醒要等约 50 秒），再试一次"
+                        : "连不上管家服务器（\(AgentConfig.url)）。确认 Mac 上的 run_app.command 在运行，手机和 Mac 在同一个网络。"
                 default: return e.localizedDescription
                 }
             } ?? error.localizedDescription

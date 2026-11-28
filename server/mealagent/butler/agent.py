@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import contextvars
 import datetime as dt
 import json
 import queue
@@ -204,7 +205,7 @@ def run(body: dict) -> Iterator[dict]:
                     finally:
                         q.put(None)
 
-                th = threading.Thread(target=work, daemon=True)
+                th = threading.Thread(target=contextvars.copy_context().run, args=(work,), daemon=True)   # 带上这一轮的 Key
                 th.start()
                 while True:
                     ev = q.get()
