@@ -258,7 +258,7 @@ class Turn:
             return "，".join(why)
         rated = [(sc, x, bad_reason(x, issues)) for sc, x, issues in scored]
         picks = [{"name": x["name"], "kcal": round(_num(x.get("kcal"))), "protein": round(_num(x.get("protein"))), "price": x.get("price"),
-                  "hidden": x.get("hidden", ""), "veg": bool(x.get("veg"))} for _, x, why in sorted(rated, key=lambda t: -t[0]) if not why][:3]
+                  "hidden": x.get("hidden", ""), "veg": bool(x.get("veg")), "tags": [str(i) for i in x.get("ingredients", [])][:5]} for _, x, why in sorted(rated, key=lambda t: -t[0]) if not why][:3]
         avoid = [{"name": x["name"], "why": why} for _, x, why in sorted(rated, key=lambda t: t[0]) if why][:4]
         card = {"kind": "menu", "shop": r.get("shop", ""), "budget": round(budget), "eaten": round(eaten), "picks": picks, "avoid": avoid,
                 "count": len(dishes)}
@@ -350,8 +350,19 @@ class Turn:
         m = self.ctx.member(member_id)
         must = [str(x) for x in must_use or []]
         out = []
-        for i, _ in idx.search(query + " " + " ".join(must), k=60):
+        # 口味学习：按 👍/👎 和做过的菜给检索结果重排（不喜欢的菜直接不出现）
+        tp = self.ctx.taste_profile(m["id"])
+        lw, dw = tp["_like_w"], tp["_dislike_w"]
+        hits = idx.search(query + " " + " ".join(must), k=60)
+
+        def pref(r):
+            tags = [r["category"]] + r["ingredients"]
+            return sum(lw.get(t, 0) for t in tags) * 0.003 - sum(dw.get(t, 0) for t in tags) * 0.004 + (0.01 if r["title"] in tp["liked"] else 0)
+        hits = sorted(hits, key=lambda h: -(h[1] + pref(rs[h[0]])))
+        for i, _ in hits:
             r = rs[i]
+            if r["title"] in tp["disliked"]:
+                continue
             if r["category"] in HIDE_CATS or self._recipe_ok(r, m, [str(a) for a in avoid or []]):
                 continue
             if max_kcal and r.get("kcal") and r["kcal"] > max_kcal:
@@ -362,8 +373,10 @@ class Turn:
                 continue
             have, need = self._fridge_split(r)
             self.recipes[r["id"]] = r
+            liked_hit = [t for t in [r["category"]] + r["ingredients"] if lw.get(t)]
             out.append({"recipe_id": r["id"], "title": r["title"], "category": r["category"], "kcal_per_serving": r.get("kcal"),
-                        "difficulty": r.get("difficulty"), "ingredients": r["ingredients"][:10], "in_fridge": have, "need_to_buy": need})
+                        "difficulty": r.get("difficulty"), "ingredients": r["ingredients"][:10], "in_fridge": have, "need_to_buy": need,
+                        **({"matches_taste": liked_hit[:3]} if liked_hit else {})})
             if len(out) >= k:
                 break
         if not out:
@@ -388,6 +401,7 @@ class Turn:
             return None
         have, need = self._fridge_split(r)
         return {"kind": "recipe", "id": r["id"], "title": r["title"], "category": r["category"], "kcal": r.get("kcal"),
+                "tags": [r["category"]] + [x for x in r["ingredients"] if x not in PANTRY][:6],
                 "difficulty": r.get("difficulty"), "intro": r.get("intro", ""), "amounts": r.get("amounts") or r["ingredients"],
                 "steps": r.get("steps", []), "have": have, "need": need, "source": "HowToCook（程序员做饭指南）"}
 
@@ -454,7 +468,29 @@ class Turn:
     def add_to_shopping_list(self, items: list, note: str = ""):
         its = [str(x) for x in items if str(x).strip()][:40]
         self.cards.append({"kind": "shopping", "items": its, "note": note})
-        return {"ok": True, "items": its, "note": "App 会显示按钮，用户点了才会加进「提醒事项」"}
+        return {"ok": True, "items": its, "note": "App 卡片上有「去下单」（叮咚 / 美团小象 / 盒马 / 京东 / 淘宝，京东淘宝会自动加购物车）和「加入提醒事项」，付款由用户自己完成"}
+
+    # ================= 口味 / 外卖 =================
+    def taste_profile(self, member_id: str | None = None):
+        p = self.ctx.taste_profile(member_id)
+        return {k: v for k, v in p.items() if not k.startswith("_")}
+
+    def order_takeout(self, picks: list, shop: str = "", note: str = ""):
+        items = []
+        for x in picks or []:
+            if isinstance(x, dict) and x.get("name"):
+                items.append({"name": str(x["name"])[:20], "shop": str(x.get("shop") or shop)[:20], "kcal": round(_num(x.get("kcal"))),
+                              "why": str(x.get("why", ""))[:40]})
+            elif isinstance(x, str) and x:
+                items.append({"name": x[:20], "shop": shop[:20], "kcal": 0, "why": ""})
+        if not items:
+            return {"error": "picks 不能为空"}
+        m = self.ctx.member()
+        bad = {it["name"]: safety.check(self.ctx.kind(m["id"]), m.get("allergies", []), [it["name"]]) + _avoid_hits(m, [it["name"]]) for it in items}
+        for it in items:
+            it["warnings"] = bad[it["name"]]
+        self.cards.append({"kind": "takeout", "id": _id("T"), "shop": shop, "items": items, "note": note})
+        return {"ok": True, "items": items, "note": "App 显示了去美团 / 饿了么 / 大众点评的按钮，下单付款由用户自己完成；送到后可以点「点好了，记一笔」"}
 
     # ================= 办一件事（D）=================
     def plan_occasion(self, date: str | None = None, time: str = "18:30", guests: list | None = None, dishes: int | None = None,
@@ -608,6 +644,11 @@ SCHEMAS = [
        {"query": S, "member_id": MID}, ["query"]),
     _f("design_journal", "给某天的手账做一版设计：纸张、标题、一句手账日记、贴纸摆放、和纸胶带/emoji/印章/便利贴等装饰。程序会自动修正重叠和出界。App 显示预览，用户点「用这版」才会应用。",
        {"date": DATE, "request": {**S, "description": "用户对风格的要求，如「日系清新」「复古」「可爱一点」"}, "member_id": MID}),
+    _f("taste_profile", "看用户的口味画像：点过 👍/👎 的菜、偏爱和不爱的食材、最近常吃的菜系和菜。", {"member_id": MID}),
+    _f("order_takeout", "帮用户点外卖：给出决定好的菜（可以来自菜单识别、口味画像和今天剩余热量），App 会显示一键去美团 / 饿了么 / 大众点评搜索的按钮。",
+       {"picks": {"type": "array", "items": {"type": "object", "properties": {"name": {**S, "description": "菜名"}, "shop": S, "kcal": N,
+                                                                              "why": {**S, "description": "一句推荐理由"}}}},
+        "shop": {**S, "description": "店名（知道的话）"}, "note": {**S, "description": "下单小贴士，如「酱汁分装」「米饭减半」"}}, ["picks"]),
     _f("plan_occasion", "规划一顿有客人的饭（请客、给爸妈做饭、聚餐、过节）：按每位客人的忌口和身体情况排菜（程序逐条检查），倒推做饭时间线，合并采购清单。",
        {"date": DATE, "time": {**S, "description": "开饭时间 HH:MM"},
         "guests": {"type": "array", "items": {"type": "object", "properties": {
@@ -640,6 +681,7 @@ LABELS = {
     "add_to_shopping_list": ("🛒", "整理购物清单"), "design_journal": ("🎨", "设计手账排版"),
     "edit_meal": ("✏️", "修改记录"), "delete_meal": ("🗑️", "准备删除记录"), "update_settings": ("⚙️", "修改设置"),
     "share_journal": ("📤", "准备导出分享"), "create_reminder": ("⏰", "设提醒"), "plan_occasion": ("🍽️", "按每位客人排菜并检查"),
+    "taste_profile": ("👅", "看你的口味画像"), "order_takeout": ("🛵", "准备外卖下单"),
 }
 
 
@@ -676,6 +718,10 @@ def summarize(name: str, args: dict, res) -> str:
             return " ".join(["+" + x for x in args.get("add", []) or []] + ["−" + x for x in args.get("remove", []) or []])
         if name == "add_to_shopping_list":
             return "、".join(res.get("items", [])[:10])
+        if name == "order_takeout":
+            return "、".join(f'{i["name"]}' for i in res.get("items", []))
+        if name == "taste_profile":
+            return "偏爱 " + "、".join(res.get("liked_tags", [])[:4]) if res.get("liked_tags") else "数据还不多"
         if name == "plan_occasion":
             return res.get("summary", "")
         if name == "create_reminder":

@@ -57,6 +57,7 @@ class Ctx:
     fridge: list[str] = field(default_factory=list)
     images: dict[str, str] = field(default_factory=dict)
     day: dict = field(default_factory=dict)          # 今天的心情、喝水、小记
+    taste: list[dict] = field(default_factory=list)  # 口味反馈：卡片上的 👍/👎、做过的菜
     _db: sqlite3.Connection | None = None
 
     @classmethod
@@ -68,7 +69,7 @@ class Ctx:
         today = c.get("today") or dt.date.today().isoformat()
         return cls(today=today, now=c.get("now") or "12:00", member_id=c.get("member_id") or "me", members=members,
                    memories=c.get("memories") or [], records=c.get("records") or [], fridge=c.get("fridge") or [],
-                   images=images or {}, day=c.get("day") or {})
+                   images=images or {}, day=c.get("day") or {}, taste=c.get("taste") or [])
 
     # ---------- 成员 ----------
     def member(self, mid: str | None = None) -> dict:
@@ -169,6 +170,51 @@ class Ctx:
             if len(out) >= k:
                 break
         return out
+
+    # ---------- 口味画像 ----------
+    def taste_profile(self, mid: str | None = None) -> dict:
+        """显式反馈（👍/👎、做过）+ 隐式信号（最近 60 天真的吃了什么）→ 口味画像。"""
+        from collections import Counter
+        liked, disliked, like_tags, dislike_tags = [], [], Counter(), Counter()
+        for e in self.taste[-300:]:
+            w = 0.5 if e.get("kind") == "cooked" else 1.0
+            tags = [t for t in e.get("tags") or [] if t]
+            if e.get("like"):
+                liked.append(e.get("item"))
+                for t in tags:
+                    like_tags[t] += w
+            else:
+                disliked.append(e.get("item"))
+                for t in tags:
+                    dislike_tags[t] += 1
+        since = (dt.date.fromisoformat(self.today) - dt.timedelta(days=60)).isoformat()
+        rs = [r for r in self.recs(mid) if r.get("date", "") >= since]
+        cuisines = Counter(r.get("cuisine") for r in rs if r.get("cuisine"))
+        methods = Counter(m for r in rs for m in r.get("methods") or [])
+        dishes = Counter(r.get("title") for r in rs if r.get("title"))
+        foods = Counter(f.get("name") for r in rs for f in r.get("foods") or [] if f.get("name"))
+        return {"liked": list(dict.fromkeys(x for x in liked if x))[-15:], "disliked": list(dict.fromkeys(x for x in disliked if x))[-15:],
+                "liked_tags": [t for t, _ in like_tags.most_common(10)], "disliked_tags": [t for t, c in dislike_tags.most_common(10) if c >= 2 and like_tags[t] < c],
+                "top_cuisines": [c for c, _ in cuisines.most_common(4)], "top_methods": [m for m, _ in methods.most_common(3)],
+                "favorite_dishes": [d for d, n in dishes.most_common(6) if n >= 2], "frequent_foods": [f for f, _ in foods.most_common(8)],
+                "_like_w": dict(like_tags), "_dislike_w": dict(dislike_tags)}
+
+    def taste_line(self) -> str:
+        p = self.taste_profile()
+        bits = []
+        if p["liked"]:
+            bits.append("点过👍：" + "、".join(p["liked"][-6:]))
+        if p["disliked"]:
+            bits.append("点过👎：" + "、".join(p["disliked"][-6:]))
+        if p["liked_tags"]:
+            bits.append("偏爱：" + "、".join(p["liked_tags"][:6]))
+        if p["disliked_tags"]:
+            bits.append("不太爱：" + "、".join(p["disliked_tags"][:5]))
+        if p["top_cuisines"]:
+            bits.append("最近常吃菜系：" + "、".join(p["top_cuisines"]))
+        if p["favorite_dishes"]:
+            bits.append("常吃：" + "、".join(p["favorite_dishes"][:4]))
+        return "；".join(bits) or "（还没有足够的数据）"
 
     # ---------- 长期记忆 ----------
     def relevant_memories(self, text: str, k: int = 25) -> list[dict]:

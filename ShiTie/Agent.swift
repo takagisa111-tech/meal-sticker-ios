@@ -101,6 +101,16 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     }
 }
 
+/// 口味反馈：卡片上的 👍/👎，以及「开始做」过的菜
+struct TasteEvent: Codable, Identifiable, Equatable {
+    var id = UUID().uuidString
+    var item: String
+    var kind: String        // recipe / dish / cooked
+    var like: Bool
+    var tags: [String] = []
+    var at = Date()
+}
+
 struct MemoryItem: Codable, Identifiable, Equatable {
     var id: String
     var text: String
@@ -111,6 +121,7 @@ private struct ButlerFile: Codable {
     var messages: [ChatMessage]
     var memories: [MemoryItem]
     var fridge: [String]
+    var taste: [TasteEvent]? = nil
 }
 
 // MARK: - 服务器设置
@@ -155,6 +166,7 @@ final class Butler: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var memories: [MemoryItem] = []
     @Published var fridge: [String] = []
+    @Published var taste: [TasteEvent] = []
     @Published var streaming = false
     @Published var draft: String?          // 从通知带过来、放进输入框的半句话
 
@@ -170,7 +182,7 @@ final class Butler: ObservableObject {
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .secondsSince1970
         if let d = try? Data(contentsOf: fileURL), let f = try? dec.decode(ButlerFile.self, from: d) {
-            messages = f.messages; memories = f.memories; fridge = f.fridge
+            messages = f.messages; memories = f.memories; fridge = f.fridge; taste = f.taste ?? []
         }
         // 上次没跑完就被关掉的回复，标成中断
         for i in messages.indices where messages[i].role == "assistant" && messages[i].footer.isEmpty && messages[i].error == nil {
@@ -186,7 +198,7 @@ final class Butler: ObservableObject {
     func save() {
         let enc = JSONEncoder()
         enc.dateEncodingStrategy = .secondsSince1970
-        if let d = try? enc.encode(ButlerFile(messages: Array(messages.suffix(200)), memories: memories, fridge: fridge)) {
+        if let d = try? enc.encode(ButlerFile(messages: Array(messages.suffix(200)), memories: memories, fridge: fridge, taste: Array(taste.suffix(500)))) {
             try? d.write(to: fileURL, options: .atomic)
         }
     }
@@ -469,6 +481,22 @@ final class Butler: ObservableObject {
         save()
     }
 
+    // MARK: 口味学习
+
+    /// nil = 没表态；true / false = 👍 / 👎（同一道菜以最后一次为准，再点一次取消）
+    func liked(_ item: String) -> Bool? { taste.last(where: { $0.item == item && $0.kind != "cooked" })?.like }
+
+    func rate(_ item: String, like: Bool, tags: [String], kind: String = "recipe") {
+        if liked(item) == like { taste.removeAll { $0.item == item && $0.kind != "cooked" } }
+        else { taste.removeAll { $0.item == item && $0.kind != "cooked" }; taste.append(TasteEvent(item: item, kind: kind, like: like, tags: tags)) }
+        save()
+    }
+
+    func cooked(_ item: String, tags: [String]) {
+        taste.append(TasteEvent(item: item, kind: "cooked", like: true, tags: tags))
+        save()
+    }
+
     func markSaved(message mid: String, draft: String) {
         mutate(mid) { if !$0.saved.contains(draft) { $0.saved.append(draft) } }
         save()
@@ -497,6 +525,7 @@ final class Butler: ObservableObject {
         let ctx: [String: Any] = [
             "today": D.today, "now": D.nowHM(), "member_id": store.currentID, "members": members,
             "memories": memories.map { ["id": $0.id, "text": $0.text] }, "fridge": fridge, "records": records,
+            "taste": taste.suffix(300).map { ["item": $0.item, "kind": $0.kind, "like": $0.like, "tags": $0.tags] as [String: Any] },
             "day": ["mood": store.day(D.today).mood, "water": store.day(D.today).water, "note": store.day(D.today).note] as [String: Any],
         ]
         let body: [String: Any] = ["messages": msgs, "images": images, "context": ctx]

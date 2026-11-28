@@ -490,6 +490,7 @@ struct AgentCardView: View {
         case "confirm": ConfirmCard(card: card, message: message)
         case "share": ShareCard(date: card["date"].str)
         case "occasion": OccasionCard(card: card)
+        case "takeout": TakeoutCard(card: card, send: send)
         default: EmptyView()
         }
     }
@@ -614,14 +615,16 @@ struct MealDraftCard: View {
 }
 
 struct RecipeCard: View {
+    @EnvironmentObject var butler: Butler
     let card: JSONValue
     @State private var cooking = false
     var body: some View {
         CardBox {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center) {
                 Text(card["title"].str).font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.ink)
                 Spacer()
                 if card["kcal"].num > 0 { Text("\(card["kcal"].int) kcal/份").font(.system(size: 12)).foregroundStyle(Color.ink2) }
+                ThumbButtons(item: card["title"].str, tags: card["tags"].strs)
             }
             HStack(spacing: 6) {
                 Pill(text: card["category"].str)
@@ -633,8 +636,8 @@ struct RecipeCard: View {
             }
             IngredientSplit(have: card["have"].strs, need: card["need"].strs)
             HStack(spacing: 8) {
-                Button { cooking = true } label: { Label("开始做", systemImage: "frying.pan") }.buttonStyle(PrimaryButton())
-                if !card["need"].strs.isEmpty { AddShoppingButton(items: card["need"].strs, compact: true) }
+                Button { cooking = true; butler.cooked(card["title"].str, tags: card["tags"].strs) } label: { Label("开始做", systemImage: "frying.pan") }.buttonStyle(PrimaryButton())
+                if !card["need"].strs.isEmpty { BuyButton(items: card["need"].strs, compact: true) }
             }
             Text("菜谱来自 " + card["source"].str).font(.system(size: 10.5)).foregroundStyle(Color.ink3)
         }
@@ -683,6 +686,8 @@ struct MenuCard: View {
                             .font(.system(size: 12)).foregroundStyle(Color.ink2)
                         if !p["hidden"].str.isEmpty { Text("留意：" + p["hidden"].str).font(.system(size: 12)).foregroundStyle(Color(red: 0.55, green: 0.40, blue: 0.10)) }
                     }
+                    Spacer(minLength: 0)
+                    ThumbButtons(item: p["name"].str, tags: p["tags"].strs, kind: "dish")
                 }
             }
             if !card["avoid"].arr.isEmpty {
@@ -696,6 +701,7 @@ struct MenuCard: View {
                     }
                 }
             }
+            if !card["shop"].str.isEmpty { TakeoutButtons(keyword: card["shop"].str) }
         }
     }
 }
@@ -734,7 +740,10 @@ struct PlanCard: View {
             }
             FlowLayout(spacing: 5) { ForEach(card["checks"].strs, id: \.self) { Pill(text: "✓ " + $0, style: .green) } }
             ForEach(card["violations"].strs, id: \.self) { v in Text("· " + v).font(.system(size: 12)).foregroundStyle(Color.tomato) }
-            if !card["shopping"].strs.isEmpty { AddShoppingButton(items: card["shopping"].strs, compact: false) }
+            if !card["shopping"].strs.isEmpty {
+                BuyButton(items: card["shopping"].strs)
+                AddShoppingButton(items: card["shopping"].strs, compact: false)
+            }
         }
         .fullScreenCover(item: Binding(get: { cooking.map { RecipeBox(recipe: $0) } }, set: { cooking = $0?.recipe })) { b in
             CookingView(recipe: b.recipe)
@@ -807,6 +816,7 @@ struct ShoppingCard: View {
             CardTitle(text: "🛒 购物清单", trailing: "\(items.count) 样")
             FlowLayout(spacing: 6) { ForEach(items, id: \.self) { Pill(text: $0) } }
             if !note.isEmpty { Text(note).font(.system(size: 12)).foregroundStyle(Color.ink2) }
+            BuyButton(items: items)
             AddShoppingButton(items: items, compact: false)
         }
     }
@@ -1416,11 +1426,153 @@ struct OccasionCard: View {
                     store.flash("已按时间线设好 \(reminded.count) 个提醒")
                 } label: { Label("全部设提醒", systemImage: "bell.badge") }
                 .buttonStyle(PrimaryButton())
-                if !card["shopping"].strs.isEmpty { AddShoppingButton(items: card["shopping"].strs, compact: true) }
+                if !card["shopping"].strs.isEmpty { BuyButton(items: card["shopping"].strs, compact: true) }
             }
         }
         .fullScreenCover(item: Binding(get: { cooking.map { RecipeBox(recipe: $0) } }, set: { cooking = $0?.recipe })) { b in
             CookingView(recipe: b.recipe)
+        }
+    }
+}
+
+// MARK: - 口味学习：👍 / 👎
+
+struct ThumbButtons: View {
+    @EnvironmentObject var butler: Butler
+    let item: String
+    let tags: [String]
+    var kind = "recipe"
+    var body: some View {
+        let v = butler.liked(item)
+        HStack(spacing: 4) {
+            Button { butler.rate(item, like: true, tags: tags, kind: kind) } label: {
+                Image(systemName: v == true ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    .font(.system(size: 13)).foregroundStyle(v == true ? Color.brand : Color.ink3).frame(width: 28, height: 26)
+            }
+            Button { butler.rate(item, like: false, tags: tags, kind: kind) } label: {
+                Image(systemName: v == false ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                    .font(.system(size: 13)).foregroundStyle(v == false ? Color.tomato : Color.ink3).frame(width: 28, height: 26)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("喜欢或不喜欢\(item)")
+    }
+}
+
+// MARK: - 买菜：一键去平台下单（复用「去买菜」页：京东 / 淘宝自动加购物车，其他平台跳转搜索）
+
+struct BuyButton: View {
+    let items: [String]
+    var compact = false
+    @State private var open = false
+    var body: some View {
+        Button { open = true } label: { Label(compact ? "去买" : "去下单（\(items.count) 样）", systemImage: "bag") }
+            .buttonStyle(PrimaryButton())
+            .sheet(isPresented: $open) { GroceryView(items: items, title: "管家整理的采购清单") }
+    }
+}
+
+// MARK: - 外卖：跳到美团 / 饿了么 / 大众点评（这些平台不开放下单接口，付款要在它们的 App 里完成）
+
+enum TakeoutApp: String, CaseIterable, Identifiable {
+    case meituan, eleme, dianping
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .meituan: return "美团"
+        case .eleme: return "饿了么"
+        case .dianping: return "大众点评"
+        }
+    }
+
+    @MainActor func open(_ keyword: String, store: Store) {
+        let q = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword
+        var urls: [String] = []
+        switch self {
+        case .meituan: urls = ["imeituan://www.meituan.com/search?q=\(q)", "meituanwaimai://", "imeituan://"]
+        case .eleme:
+            UIPasteboard.general.string = keyword
+            store.flash("已复制「\(keyword)」，在饿了么里粘贴搜索")
+            urls = ["eleme://"]
+        case .dianping: urls = ["dianping://searchshoplist?keyword=\(q)", "dianping://"]
+        }
+        func tryOpen(_ list: [String]) {
+            guard let s = list.first, let u = URL(string: s) else {
+                store.flash("没装\(name)")
+                return
+            }
+            UIApplication.shared.open(u, options: [:]) { ok in
+                if !ok { Task { @MainActor in tryOpen(Array(list.dropFirst())) } }
+            }
+        }
+        tryOpen(urls)
+    }
+}
+
+struct TakeoutButtons: View {
+    @EnvironmentObject var store: Store
+    let keyword: String
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(TakeoutApp.allCases) { a in
+                Button { a.open(keyword, store: store) } label: {
+                    Text("去" + a.name).font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(a == .meituan ? Color.white : Color.ink)
+                        .frame(maxWidth: .infinity).padding(.vertical, 9)
+                        .background(a == .meituan ? Color(red: 0.98, green: 0.75, blue: 0.13) : Color.fill)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+struct TakeoutCard: View {
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var butler: Butler
+    let card: JSONValue
+    let send: (String) -> Void
+
+    private var keyword: String {
+        let shop = card["shop"].str
+        return shop.isEmpty ? (card["items"].arr.first?["name"].str ?? "") : shop
+    }
+
+    var body: some View {
+        CardBox {
+            HStack {
+                Text("🛵 " + (card["shop"].str.isEmpty ? "帮你选好了" : card["shop"].str)).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                Spacer()
+                let k = card["items"].arr.reduce(0) { $0 + $1["kcal"].int }
+                if k > 0 { Text("约 \(k) kcal").font(.system(size: 12)).foregroundStyle(Color.ink2) }
+            }
+            ForEach(Array(card["items"].arr.enumerated()), id: \.offset) { _, it in
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(it["name"].str).font(.system(size: 14.5, weight: .medium)).foregroundStyle(Color.ink)
+                            if it["kcal"].int > 0 { Text("\(it["kcal"].int) kcal").font(.system(size: 12)).foregroundStyle(Color.ink2) }
+                        }
+                        if !it["why"].str.isEmpty { Text(it["why"].str).font(.system(size: 12)).foregroundStyle(Color.ink2) }
+                        ForEach(it["warnings"].strs, id: \.self) { w in
+                            Label(w, systemImage: "exclamationmark.triangle.fill").font(.system(size: 12)).foregroundStyle(Color.tomato)
+                        }
+                    }
+                    Spacer()
+                    ThumbButtons(item: it["name"].str, tags: [it["name"].str], kind: "dish")
+                }
+            }
+            if !card["note"].str.isEmpty {
+                Text("下单小贴士：" + card["note"].str).font(.system(size: 12.5)).foregroundStyle(Color(red: 0.55, green: 0.40, blue: 0.10))
+            }
+            TakeoutButtons(keyword: keyword)
+            Text("跳过去会帮你搜好「\(keyword)」，下单和付款在平台里完成").font(.system(size: 11)).foregroundStyle(Color.ink3)
+            Button {
+                let names = card["items"].arr.map { $0["name"].str }.joined(separator: "、")
+                send("外卖点好了：\(card["shop"].str.isEmpty ? "" : card["shop"].str + "的")\(names)，帮我记一笔")
+            } label: { Label("点好了，记一笔", systemImage: "checkmark.circle") }
+            .buttonStyle(SoftButton()).disabled(butler.streaming)
         }
     }
 }

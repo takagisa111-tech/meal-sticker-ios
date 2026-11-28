@@ -42,7 +42,8 @@ def _system(ctx: Ctx, user_text: str) -> str:
         today=ctx.today, weekday="周" + WEEKDAY[d.isoweekday() - 1], now=ctx.now,
         who=f'{m.get("name") or "我"}（id={m["id"]}）', today_status=ctx.today_status(),
         fridge="、".join(ctx.fridge) if ctx.fridge else "（没有登记）", members=ctx.describe_members(),
-        memories="\n".join(f'- [{x.get("id", "")}] {x["text"]}' for x in mem) if mem else "（还没有）")
+        memories="\n".join(f'- [{x.get("id", "")}] {x["text"]}' for x in mem) if mem else "（还没有）",
+        taste=ctx.taste_line())
 
 
 def _history(body: dict) -> tuple[list[dict], dict]:
@@ -104,7 +105,7 @@ def _cards(turn: Turn, final: str) -> list[dict]:
                 cards.append(c)
     if turn.table:
         cards.append(turn.table)
-    cards += [c for c in turn.cards if c["kind"] in ("safety", "shopping", "confirm", "share")]
+    cards += [c for c in turn.cards if c["kind"] in ("takeout", "safety", "shopping", "confirm", "share")]
     cites = [turn.guides[g] for g in refs if g in turn.guides]
     if not cites and turn.guides:   # 查了指南但正文忘了标编号：仍然给出处
         cites = list(turn.guides.values())[:3]
